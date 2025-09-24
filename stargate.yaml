@@ -1,0 +1,4 @@
+
+filesets:
+  rtl:
+    - bench/*.v

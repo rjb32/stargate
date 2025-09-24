@@ -1,0 +1,5 @@
+build/
+.cache/
+uv.lock
+compile_commands.json
+__pycache__

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["scikit-build-core"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "stargate"
+version = "0.1.0"
+dependencies = []
+requires-python = ">=3.8"
+
+[project.scripts]
+stargate = "stargatecompiler:main"
+
+[tool.scikit-build]
+cmake.build-type = "Release"
+build-dir = "build/"
+wheel.packages = ["src/python/stargatecompiler"]
+
+[tool.uv]
+dev-dependencies = [
+    "build>=0.10.0",
+    "twine>=4.0.0"
+]
