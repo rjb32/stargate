@@ -12,9 +12,9 @@ CoreConfig::CoreConfig()
 CoreConfig::~CoreConfig() {
 }
 
-bool CoreConfig::readConfig(const std::string& configPath) {
+bool CoreConfig::readConfig() {
     try {
-        YAML::Node config = YAML::LoadFile(configPath);
+        YAML::Node config = YAML::LoadFile(_configPath);
         (void)config;
     } catch (const YAML::Exception& e) {
         spdlog::error("Error loading config file: {}", e.what());

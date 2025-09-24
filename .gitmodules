@@ -4,3 +4,6 @@
 [submodule "src/external/spdlog"]
 	path = src/external/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "src/external/argparse"]
+	path = src/external/argparse
+	url = https://github.com/p-ranav/argparse.git

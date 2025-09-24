@@ -9,7 +9,14 @@ public:
     CoreConfig();
     ~CoreConfig();
 
-    bool readConfig(const std::string& configPath);
+    const std::string& getConfigPath() const { return _configPath; }
+
+    void setConfigPath(const std::string& configPath) { _configPath = configPath; }
+
+    bool readConfig();
+
+private:
+    std::string _configPath;
 };
 
 }
