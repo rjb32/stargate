@@ -1,6 +1,13 @@
 #pragma once
 
 #include <string>
+#include <map>
+
+#include "FileSet.h"
+
+namespace YAML {
+class Node;
+}
 
 namespace stargate {
 
@@ -16,7 +23,13 @@ public:
     bool readConfig();
 
 private:
+    bool _verbose {true};
     std::string _configPath;
+    std::map<std::string, FileSet> _filesets;
+
+    void parseConfig(const YAML::Node& config);
+    void parseFilesets(const YAML::Node& filesets);
+    void dumpConfig();
 };
 
 }

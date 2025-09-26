@@ -1,4 +1,4 @@
 
 filesets:
   rtl:
-    - bench/*.v
+    - leds/*.v
