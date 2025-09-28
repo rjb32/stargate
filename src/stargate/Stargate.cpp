@@ -1,35 +1,32 @@
-#include <stdlib.h>
+#include "Stargate.h"
 
-#include <argparse/argparse.hpp>
 #include <spdlog/spdlog.h>
 
-#include "CoreConfig.h"
+#include "StargateConfig.h"
+
+#include "FileUtils.h"
 
 using namespace stargate;
-using namespace argparse;
 
-constexpr const char* STARGATE_NAME = "stargate";
+Stargate::Stargate(const StargateConfig& config)
+    : _config(config)
+{
+}
 
-int main(int argc, char** argv) {
-    CoreConfig config;
+Stargate::~Stargate() {
+}
 
-    ArgumentParser argParser(STARGATE_NAME);
+void Stargate::run() {
+    createOutputDir();
+}
 
-    argParser.add_argument("-c", "--config")
-    .metavar("stargate.yaml")
-    .action([&](const std::string& value) {
-        config.setConfigPath(value);
-    })
-    .help("Path to the config file");
-
-    try {
-        argParser.parse_args(argc, argv);
-    } catch (const std::runtime_error& err) {
-        spdlog::error("{}", err.what());
-        return EXIT_FAILURE;
+void Stargate::createOutputDir() {
+    const auto& stargateDir = _config.getStargateDir();
+    if (FileUtils::exists(stargateDir)) {
+        FileUtils::removeDirectory(stargateDir);
     }
 
-    config.readConfig();
+    FileUtils::createDirectory(stargateDir);
 
-    return EXIT_SUCCESS;
+    spdlog::info("Using stargate output directory {}", stargateDir);
 }

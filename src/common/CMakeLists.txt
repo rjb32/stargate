@@ -1,5 +1,7 @@
 
-set(common_sources FileSet.cpp)
+set(common_sources 
+    FileSet.cpp
+    FileUtils.cpp)
 
 add_library(sgc_common_s STATIC ${common_sources})
 
