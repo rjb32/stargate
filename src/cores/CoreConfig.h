@@ -20,7 +20,7 @@ public:
 
     void setConfigPath(const std::string& configPath) { _configPath = configPath; }
 
-    bool readConfig();
+    void readConfig();
 
 private:
     bool _verbose {true};

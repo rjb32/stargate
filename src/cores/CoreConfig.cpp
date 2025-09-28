@@ -17,21 +17,18 @@ CoreConfig::CoreConfig()
 CoreConfig::~CoreConfig() {
 }
 
-bool CoreConfig::readConfig() {
+void CoreConfig::readConfig() {
     try {
         spdlog::info("Reading core config file: {}", _configPath);
         YAML::Node config = YAML::LoadFile(_configPath);
         parseConfig(config);
     } catch (const YAML::Exception& e) {
         spdlog::error("Error loading config file: {}", e.what());
-        return false;
     }
 
     if (_verbose) {
         dumpConfig();
     }
-    
-    return true;
 }
 
 void CoreConfig::dumpConfig() {
