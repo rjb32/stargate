@@ -1,5 +1,5 @@
 add_subdirectory(external)
 add_subdirectory(common)
-add_subdirectory(cores)
+add_subdirectory(project)
 add_subdirectory(stargate)
 add_subdirectory(tools)

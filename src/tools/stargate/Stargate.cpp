@@ -6,7 +6,7 @@
 #include "Stargate.h"
 
 #include "StargateConfig.h"
-#include "CoreConfig.h"
+#include "ProjectConfig.h"
 
 using namespace stargate;
 using namespace argparse;
@@ -15,14 +15,14 @@ constexpr const char* STARGATE_NAME = "stargate";
 
 int main(int argc, char** argv) {
     StargateConfig stargateConfig;
-    CoreConfig coreConfig;
+    ProjectConfig projectConfig;
 
     ArgumentParser argParser(STARGATE_NAME);
 
     argParser.add_argument("-c", "--config")
     .metavar("stargate.yaml")
     .action([&](const std::string& value) {
-        coreConfig.setConfigPath(value);
+        projectConfig.setConfigPath(value);
     })
     .help("Path to the config file");
 

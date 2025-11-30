@@ -11,10 +11,10 @@ class Node;
 
 namespace stargate {
 
-class CoreConfig {
+class ProjectConfig {
 public:
-    CoreConfig();
-    ~CoreConfig();
+    ProjectConfig();
+    ~ProjectConfig();
 
     const std::string& getConfigPath() const { return _configPath; }
 

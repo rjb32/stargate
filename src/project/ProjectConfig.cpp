@@ -1,23 +1,23 @@
-#include "CoreConfig.h"
+#include "ProjectConfig.h"
 
 #include <yaml-cpp/yaml.h>
 #include <spdlog/spdlog.h>
 
 #include "Panic.h"
 
-#define CORE_CONFIG_DEFAULT_PATH "stargate.yaml"
+#define CONFIG_DEFAULT_PATH "stargate.yaml"
 
 using namespace stargate;
 
-CoreConfig::CoreConfig()
-    : _configPath(CORE_CONFIG_DEFAULT_PATH)
+ProjectConfig::ProjectConfig()
+    : _configPath(CONFIG_DEFAULT_PATH)
 {
 }
 
-CoreConfig::~CoreConfig() {
+ProjectConfig::~ProjectConfig() {
 }
 
-void CoreConfig::readConfig() {
+void ProjectConfig::readConfig() {
     try {
         spdlog::info("Reading core config file: {}", _configPath);
         YAML::Node config = YAML::LoadFile(_configPath);
@@ -31,7 +31,7 @@ void CoreConfig::readConfig() {
     }
 }
 
-void CoreConfig::dumpConfig() {
+void ProjectConfig::dumpConfig() {
     for (const auto& filesetEntry : _filesets) {
         const FileSet& fileset = filesetEntry.second;
 
@@ -42,7 +42,7 @@ void CoreConfig::dumpConfig() {
     }
 }
 
-void CoreConfig::parseConfig(const YAML::Node& config) {
+void ProjectConfig::parseConfig(const YAML::Node& config) {
     for (const auto& pair : config) {
         const std::string& key = pair.first.as<std::string>();
         const YAML::Node& node = pair.second;
@@ -54,7 +54,7 @@ void CoreConfig::parseConfig(const YAML::Node& config) {
     }
 }
 
-void CoreConfig::parseFilesets(const YAML::Node& filesets) {
+void ProjectConfig::parseFilesets(const YAML::Node& filesets) {
     for (const auto& pair : filesets) {
         const std::string& filesetName = pair.first.as<std::string>();
         const YAML::Node& files = pair.second;
