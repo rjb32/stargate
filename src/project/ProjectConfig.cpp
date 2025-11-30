@@ -3,6 +3,7 @@
 #include <yaml-cpp/yaml.h>
 #include <spdlog/spdlog.h>
 
+#include "FileUtils.h"
 #include "Panic.h"
 
 #define CONFIG_DEFAULT_PATH "stargate.yaml"
@@ -19,7 +20,7 @@ ProjectConfig::~ProjectConfig() {
 
 void ProjectConfig::readConfig() {
     try {
-        spdlog::info("Reading core config file: {}", _configPath);
+        spdlog::info("Reading project config file: {}", _configPath);
         YAML::Node config = YAML::LoadFile(_configPath);
         parseConfig(config);
     } catch (const YAML::Exception& e) {
@@ -40,6 +41,8 @@ void ProjectConfig::dumpConfig() {
             spdlog::info("  Pattern: {}", file);
         }
     }
+
+    fmt::print("\n");
 }
 
 void ProjectConfig::parseConfig(const YAML::Node& config) {

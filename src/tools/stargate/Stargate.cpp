@@ -17,6 +17,7 @@ int main(int argc, char** argv) {
     StargateConfig stargateConfig;
     ProjectConfig projectConfig;
 
+    // Parse arguments
     ArgumentParser argParser(STARGATE_NAME);
 
     argParser.add_argument("-c", "--config")
@@ -39,6 +40,9 @@ int main(int argc, char** argv) {
         spdlog::error("{}", err.what());
         return EXIT_FAILURE;
     }
+
+    // Read project config
+    projectConfig.readConfig();
 
     Stargate stargate(stargateConfig);
     stargate.run();

@@ -22,6 +22,8 @@ void Stargate::run() {
 
 void Stargate::createOutputDir() {
     const auto& stargateDir = _config.getStargateDir();
+
+    // Empty output directory if it exists, create otherwise
     if (FileUtils::exists(stargateDir)) {
         FileUtils::removeDirectory(stargateDir);
     }
