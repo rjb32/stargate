@@ -1,5 +1,14 @@
 # Journal
 
+## 28/11/2025
+
+Infra lab to build FPGAs.
+Run on-demand infrastructure.
+
+Build: a tool can either run locally or on a machine
+Machine flow: specify a specific machine already existing
+Cloud flow: provision a machine from the cloud
+
 ## 27/11/2025
 
 Hybrid netlist representation:
