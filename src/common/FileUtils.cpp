@@ -25,3 +25,7 @@ void FileUtils::removeDirectory(const std::string& path) {
         panic("Failed to remove directory: {} {}", path, e.what());
     }
 }
+
+std::string FileUtils::absolute(const std::string& path) {
+    return std::filesystem::absolute(path).string();
+}

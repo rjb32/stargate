@@ -11,7 +11,6 @@
 using namespace stargate;
 
 ProjectConfig::ProjectConfig()
-    : _configPath(CONFIG_DEFAULT_PATH)
 {
 }
 
@@ -19,6 +18,15 @@ ProjectConfig::~ProjectConfig() {
 }
 
 void ProjectConfig::readConfig() {
+    if (_configPath.empty()) {
+        _configPath = CONFIG_DEFAULT_PATH;
+        _configPath = FileUtils::absolute(_configPath);
+    }
+
+    if (!FileUtils::exists(_configPath)) {
+        panic("Project config file {} does not exist", _configPath);
+    }
+
     try {
         spdlog::info("Reading project config file: {}", _configPath);
         YAML::Node config = YAML::LoadFile(_configPath);

@@ -8,6 +8,8 @@
 #include "StargateConfig.h"
 #include "ProjectConfig.h"
 
+#include "FatalException.h"
+
 using namespace stargate;
 using namespace argparse;
 
@@ -42,7 +44,12 @@ int main(int argc, char** argv) {
     }
 
     // Read project config
-    projectConfig.readConfig();
+    try {
+        projectConfig.readConfig();
+    } catch (const FatalException& e) {
+        spdlog::error("{}", e.what());
+        return EXIT_FAILURE;
+    }
 
     Stargate stargate(stargateConfig);
     stargate.run();
