@@ -2,6 +2,7 @@
 
 #include <string>
 #include <map>
+#include <ranges>
 
 #include "FileSet.h"
 
@@ -21,6 +22,8 @@ public:
     void setConfigPath(const std::string& configPath) { _configPath = configPath; }
 
     void readConfig();
+
+    auto filesets() const { return std::views::values(_filesets); }
 
 private:
     bool _verbose {true};
