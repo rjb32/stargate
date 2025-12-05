@@ -3,3 +3,4 @@ build/
 uv.lock
 compile_commands.json
 __pycache__
+.*.swp

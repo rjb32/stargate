@@ -2,3 +2,8 @@
 filesets:
   rtl:
     - leds/*.v
+
+targets:
+  default:
+    filesets:
+      - rtl

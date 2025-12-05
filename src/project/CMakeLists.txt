@@ -1,4 +1,5 @@
 set(project_sources
+    ProjectTarget.cpp
     ProjectConfig.cpp)
 
 add_library(sgc_project_s STATIC ${project_sources})

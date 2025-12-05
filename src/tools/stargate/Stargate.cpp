@@ -36,6 +36,12 @@ int main(int argc, char** argv) {
     })
     .help("Path to the output directory");
 
+    argParser.add_argument("--verbose")
+    .default_value(false)
+    .implicit_value(true)
+    .action([&](const std::string&) { stargateConfig.setVerbose(true); })
+    .help("Set stargate into verbose mode");
+
     try {
         argParser.parse_args(argc, argv);
     } catch (const std::runtime_error& err) {
@@ -44,6 +50,7 @@ int main(int argc, char** argv) {
     }
 
     // Read project config
+    projectConfig.setVerbose(stargateConfig.getVerbose());
     try {
         projectConfig.readConfig();
     } catch (const FatalException& e) {
