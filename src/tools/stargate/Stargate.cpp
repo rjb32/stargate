@@ -21,26 +21,28 @@ int main(int argc, char** argv) {
 
     // Parse arguments
     ArgumentParser argParser(STARGATE_NAME);
+    std::string configFilePath;
+    std::string outDirPath;
+    bool isVerbose = false;
 
-    argParser.add_argument("-c", "--config")
+    argParser.add_argument("-c", "-config")
+    .nargs(1)
+    .default_value("")
     .metavar("stargate.yaml")
-    .action([&](const std::string& value) {
-        projectConfig.setConfigPath(value);
-    })
-    .help("Path to the config file");
+    .help("Path to the config file")
+    .store_into(configFilePath);
 
     argParser.add_argument("-o", "-out_dir")
+    .nargs(1)
+    .default_value("")
     .metavar("stargate.out")
-    .action([&](const std::string& value) {
-        stargateConfig.setStargateDir(value);
-    })
-    .help("Path to the output directory");
+    .help("Path to the output directory")
+    .store_into(outDirPath);
 
     argParser.add_argument("--verbose")
-    .default_value(false)
-    .implicit_value(true)
-    .action([&](const std::string&) { stargateConfig.setVerbose(true); })
-    .help("Set stargate into verbose mode");
+    .nargs(0)
+    .help("Set stargate into verbose mode")
+    .store_into(isVerbose);
 
     try {
         argParser.parse_args(argc, argv);
@@ -49,8 +51,17 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
+    projectConfig.setVerbose(isVerbose);
+
+    if (!configFilePath.empty()) {
+        projectConfig.setConfigPath(configFilePath);
+    }
+
+    if (!outDirPath.empty()) {
+        stargateConfig.setStargateDir(outDirPath);
+    }
+
     // Read project config
-    projectConfig.setVerbose(stargateConfig.getVerbose());
     try {
         projectConfig.readConfig();
     } catch (const FatalException& e) {
