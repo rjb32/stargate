@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Important: never put Claude Code or Claude as a co-author.
+
 ## Project Overview
 
 Stargate is a build system tool for FPGA development, inspired by FuseSoc. It parses YAML project configuration files containing filesets and targets, then processes them for FPGA compilation workflows.
