@@ -1,3 +1,3 @@
-STARGATE_PATH=$(pwd)/build/src/tools/stargate/
+STARGATE_PATH=$(pwd)/build/tools/stargate/
 
 export PATH=$STARGATE_PATH:$PATH

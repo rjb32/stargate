@@ -21,4 +21,8 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_subdirectory(src)
+add_subdirectory(external)
+add_subdirectory(common)
+add_subdirectory(project)
+add_subdirectory(stargate)
+add_subdirectory(tools)
