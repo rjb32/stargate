@@ -4,3 +4,4 @@ uv.lock
 compile_commands.json
 __pycache__
 .*.swp
+sgc.out
