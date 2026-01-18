@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-#define DEFAULT_STARGATE_DIR "stargate.out"
+#define DEFAULT_STARGATE_DIR "sgc.out"
 
 using namespace stargate;
 

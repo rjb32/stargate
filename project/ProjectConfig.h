@@ -29,6 +29,8 @@ public:
     
     FileSet* getFileSet(const std::string& name) const;
 
+    auto targets() const { return std::views::values(_targets); }
+
     void setConfigPath(const std::string& configPath) { _configPath = configPath; }
 
     void readConfig();

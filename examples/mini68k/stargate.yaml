@@ -1,0 +1,12 @@
+filesets:
+  rtl:
+    - rtl/**/*.v
+
+  testbench:
+    - testbench/*.v
+
+targets:
+  default:
+    filesets:
+      - rtl
+      - testbench

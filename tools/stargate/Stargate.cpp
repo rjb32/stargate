@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
     }
 
     Stargate stargate(stargateConfig);
-    stargate.run();
+    stargate.run(&projectConfig);
 
     return EXIT_SUCCESS;
 }

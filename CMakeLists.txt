@@ -1,14 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
 
-# Set the sysroot for Homebrew LLVM on macOS
-if(APPLE AND NOT CMAKE_OSX_SYSROOT)
-    execute_process(
-        COMMAND xcrun --sdk macosx --show-sdk-path
-        OUTPUT_VARIABLE CMAKE_OSX_SYSROOT
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-endif()
-
 project(stargate)
 
 set(CMAKE_CXX_STANDARD 20)
