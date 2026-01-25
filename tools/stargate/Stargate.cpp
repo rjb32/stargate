@@ -16,51 +16,14 @@ using namespace argparse;
 
 constexpr const char* STARGATE_NAME = "stargate";
 
-int runBuild(const std::string& configFilePath, const std::string& outDirPath,
-             bool isVerbose) {
-    StargateConfig stargateConfig;
-    ProjectConfig projectConfig;
-
-    projectConfig.setVerbose(isVerbose);
-
-    if (!configFilePath.empty()) {
-        projectConfig.setConfigPath(configFilePath);
-    }
-
-    if (!outDirPath.empty()) {
-        stargateConfig.setStargateDir(outDirPath);
-    }
-
-    // Read project config
-    try {
-        projectConfig.readConfig();
-    } catch (const FatalException& e) {
-        spdlog::error("{}", e.what());
-        return EXIT_FAILURE;
-    }
-
-    Stargate stargate(stargateConfig);
-    stargate.run(&projectConfig);
-
-    return EXIT_SUCCESS;
-}
-
 int runClean(const std::string& outDirPath) {
-    StargateConfig stargateConfig;
-
-    if (!outDirPath.empty()) {
-        stargateConfig.setStargateDir(outDirPath);
-    }
-
-    const std::string& stargateDir = stargateConfig.getStargateDir();
-
-    if (!FileUtils::exists(stargateDir)) {
-        spdlog::info("Nothing to clean: {} does not exist", stargateDir);
+    if (!FileUtils::exists(outDirPath)) {
+        spdlog::info("Nothing to clean: {} does not exist", outDirPath);
         return EXIT_SUCCESS;
     }
 
-    FileUtils::removeDirectory(stargateDir);
-    spdlog::info("Cleaned: {}", stargateDir);
+    FileUtils::removeDirectory(outDirPath);
+    spdlog::info("Cleaned: {}", outDirPath);
     return EXIT_SUCCESS;
 }
 
@@ -113,5 +76,31 @@ int main(int argc, char** argv) {
         return runClean(cleanOutDirPath);
     }
 
-    return runBuild(configFilePath, outDirPath, isVerbose);
+    {
+        StargateConfig stargateConfig;
+        ProjectConfig projectConfig;
+
+        projectConfig.setVerbose(isVerbose);
+
+        if (!configFilePath.empty()) {
+            projectConfig.setConfigPath(configFilePath);
+        }
+
+        if (!outDirPath.empty()) {
+            stargateConfig.setStargateDir(outDirPath);
+        }
+
+        // Read project config
+        try {
+            projectConfig.readConfig();
+        } catch (const FatalException& e) {
+            spdlog::error("{}", e.what());
+            return EXIT_FAILURE;
+        }
+
+        Stargate stargate(stargateConfig);
+        stargate.run(&projectConfig);
+    }
+
+    return EXIT_SUCCESS;
 }
