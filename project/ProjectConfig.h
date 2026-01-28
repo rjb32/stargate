@@ -4,8 +4,11 @@
 #include <map>
 #include <ranges>
 
-namespace YAML {
-class Node;
+namespace toml {
+inline namespace v3 {
+class node;
+class table;
+}
 }
 
 namespace stargate {
@@ -26,7 +29,7 @@ public:
     const std::string& getConfigPath() const { return _configPath; }
 
     auto filesets() const { return std::views::values(_filesets); }
-    
+
     FileSet* getFileSet(const std::string& name) const;
 
     auto targets() const { return std::views::values(_targets); }
@@ -42,9 +45,12 @@ private:
     std::map<std::string, ProjectTarget*> _targets;
 
     void addTarget(ProjectTarget* target);
-    void parseConfig(const YAML::Node& config);
-    void parseFilesets(const YAML::Node& filesets);
-    void parseTargets(const YAML::Node& targets);
+    void parseConfig(const toml::table& config);
+    void parseFilesets(const toml::table& filesets);
+    void parseTargets(const toml::table& targets);
+    void parseTargetProperty(ProjectTarget* target,
+                             std::string_view key,
+                             const toml::node& value);
     void dumpConfig();
 };
 

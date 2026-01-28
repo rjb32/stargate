@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
-#include <yaml-cpp/yaml.h>
+#include <toml++/toml.hpp>
 #include <spdlog/spdlog.h>
 
 #include "ProjectTarget.h"
@@ -12,7 +12,7 @@
 #include "FileUtils.h"
 #include "Panic.h"
 
-#define CONFIG_DEFAULT_PATH "stargate.yaml"
+#define CONFIG_DEFAULT_PATH "stargate.toml"
 
 using namespace stargate;
 
@@ -59,9 +59,9 @@ void ProjectConfig::readConfig() {
 
     try {
         spdlog::info("Reading project config file: {}", _configPath);
-        YAML::Node config = YAML::LoadFile(_configPath);
+        toml::table config = toml::parse_file(_configPath);
         parseConfig(config);
-    } catch (const YAML::Exception& e) {
+    } catch (const toml::parse_error& e) {
         panic("Error loading config file: {}", e.what());
     }
 
@@ -85,67 +85,80 @@ void ProjectConfig::dumpConfig() {
     fmt::print("\n");
 }
 
-void ProjectConfig::parseConfig(const YAML::Node& config) {
-    for (const auto& pair : config) {
-        const std::string& key = pair.first.as<std::string>();
-        const YAML::Node& node = pair.second;
+void ProjectConfig::parseConfig(const toml::table& config) {
+    for (const auto& [key, value] : config) {
         if (key == "filesets") {
-            parseFilesets(node);
+            if (const toml::table* filesets = value.as_table()) {
+                parseFilesets(*filesets);
+            }
         } else if (key == "targets") {
-            parseTargets(node);
+            if (const toml::table* targets = value.as_table()) {
+                parseTargets(*targets);
+            }
         } else {
-            panic("Unknown section in core config: {}", key);
+            panic("Unknown section in core config: {}", key.str());
         }
     }
 }
 
-void ProjectConfig::parseFilesets(const YAML::Node& filesets) {
-    for (auto& pair : filesets) {
-        const std::string& filesetName = pair.first.as<std::string>();
-
-        const YAML::Node& files = pair.second;
-        if (files.IsNull()) {
+void ProjectConfig::parseFilesets(const toml::table& filesets) {
+    for (const auto& [key, value] : filesets) {
+        const toml::array* files = value.as_array();
+        if (!files) {
             continue;
         }
 
+        std::string filesetName(key.str());
         FileSet* fileset = getFileSet(filesetName);
         if (!fileset) {
             fileset = new FileSet(filesetName);
             _filesets[filesetName] = fileset;
         }
 
-        for (const auto& file : files) {
-            fileset->addFilePattern(file.as<std::string>());
+        for (const auto& file : *files) {
+            if (const auto& pattern = file.value<std::string>()) {
+                fileset->addFilePattern(*pattern);
+            }
         }
     }
 }
 
-void ProjectConfig::parseTargets(const YAML::Node& targets) {
-    for (auto& pair : targets) {
-        const std::string& targetName = pair.first.as<std::string>();
-        ProjectTarget* targetObj = ProjectTarget::create(this, targetName);
-
-        const YAML::Node& target = pair.second;
-        if (target.IsNull()) {
-            continue;
+void ProjectConfig::parseTargetProperty(ProjectTarget* target,
+                                        std::string_view key,
+                                        const toml::node& value) {
+    if (key == "filesets") {
+        const toml::array* filesetList = value.as_array();
+        if (!filesetList) {
+            return;
         }
 
-        for (auto& section : target) {
-            const std::string& sectionName = section.first.as<std::string>();
-            if (sectionName == "filesets") {
-                const auto& filesets = section.second;
-                if (filesets.IsNull()) {
-                    continue;
-                }
-
-                for (auto& fileset : filesets) {
-                    const std::string& filesetName = fileset.as<std::string>();
-                    FileSet* filesetObj = getFileSet(filesetName);
-                    targetObj->addFileSet(filesetObj);
-                }
-            } else {
-                panic("Invalid section '{}' in target {}", sectionName, targetName);
+        for (const auto& fileset : *filesetList) {
+            if (const auto& filesetName = fileset.value<std::string>()) {
+                FileSet* filesetObj = getFileSet(*filesetName);
+                target->addFileSet(filesetObj);
             }
+        }
+    } else {
+        panic("Invalid section '{}' in target {}", key, target->getName());
+    }
+}
+
+void ProjectConfig::parseTargets(const toml::table& targets) {
+    ProjectTarget* defaultTarget = nullptr;
+
+    for (const auto& [key, value] : targets) {
+        if (value.is_table()) {
+            std::string targetName(key.str());
+            ProjectTarget* targetObj = ProjectTarget::create(this, targetName);
+
+            for (const auto& [sectionKey, sectionValue] : *value.as_table()) {
+                parseTargetProperty(targetObj, sectionKey.str(), sectionValue);
+            }
+        } else {
+            if (!defaultTarget) {
+                defaultTarget = ProjectTarget::create(this, "default");
+            }
+            parseTargetProperty(defaultTarget, key.str(), value);
         }
     }
 }

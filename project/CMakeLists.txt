@@ -10,5 +10,5 @@ target_link_libraries(sgc_project_s PUBLIC
     sgc_common_s)
 
 target_link_libraries(sgc_project_s PRIVATE
-    yaml-cpp
+    tomlplusplus::tomlplusplus
     spdlog::spdlog)

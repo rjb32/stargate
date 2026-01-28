@@ -1,0 +1,5 @@
+[filesets]
+rtl = ["leds/*.v"]
+
+[targets]
+filesets = ["rtl"]

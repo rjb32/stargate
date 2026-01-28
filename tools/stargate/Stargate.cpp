@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     argParser.add_argument("-c", "-config")
         .nargs(1)
         .default_value("")
-        .metavar("stargate.yaml")
+        .metavar("stargate.toml")
         .help("Path to the config file")
         .store_into(configFilePath);
 

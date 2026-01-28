@@ -1,0 +1,6 @@
+[filesets]
+rtl = ["rtl/**/*.v"]
+testbench = ["testbench/*.v"]
+
+[targets]
+filesets = ["rtl", "testbench"]

@@ -6,7 +6,7 @@ Important: never put Claude Code or Claude as a co-author.
 
 ## Project Overview
 
-Stargate is a build system tool for FPGA development, inspired by FuseSoc. It parses YAML project configuration files containing filesets and targets, then processes them for FPGA compilation workflows.
+Stargate is a build system tool for FPGA development, inspired by FuseSoc. It parses TOML project configuration files containing filesets and targets, then processes them for FPGA compilation workflows.
 
 ## Build Commands
 
@@ -19,7 +19,7 @@ cmake --build build
 source setup.sh
 
 # Run stargate
-stargate -c <config.yaml> -o <output_dir> [--verbose]
+stargate -c <config.toml> -o <output_dir> [--verbose]
 ```
 
 ## Python Package
@@ -34,13 +34,13 @@ pip install -e .
 ### Library Structure
 
 - **common/** (`sgc_common_s`) - Core utilities: FileSet, FileUtils, FatalException, Panic
-- **project/** (`sgc_project_s`) - YAML config parsing: ProjectConfig, ProjectTarget
+- **project/** (`sgc_project_s`) - TOML config parsing: ProjectConfig, ProjectTarget
 - **stargate/** (`sgc_stargate_s`) - Main compiler logic: Stargate, StargateConfig
 - **tools/stargate/** - CLI executable linking all libraries
 
 ### Key Classes
 
-- `ProjectConfig` - Parses YAML config files containing filesets and targets
+- `ProjectConfig` - Parses TOML config files containing filesets and targets
 - `ProjectTarget` - Represents a build target with associated filesets
 - `FileSet` - Collection of file patterns for a target
 - `StargateConfig` - Runtime configuration (output directory, verbosity)
@@ -48,7 +48,7 @@ pip install -e .
 
 ### Dependencies
 
-External libraries in `external/`: yaml-cpp, spdlog, argparse (as git submodules)
+External libraries in `external/`: tomlplusplus, spdlog, argparse (as git submodules)
 
 ## Coding Style
 
