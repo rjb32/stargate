@@ -16,17 +16,6 @@ using namespace argparse;
 
 constexpr const char* STARGATE_NAME = "stargate";
 
-int runClean(const std::string& outDirPath) {
-    if (!FileUtils::exists(outDirPath)) {
-        spdlog::info("Nothing to clean: {} does not exist", outDirPath);
-        return EXIT_SUCCESS;
-    }
-
-    FileUtils::removeDirectory(outDirPath);
-    spdlog::info("Cleaned: {}", outDirPath);
-    return EXIT_SUCCESS;
-}
-
 int main(int argc, char** argv) {
     // Parse arguments
     ArgumentParser argParser(STARGATE_NAME);
@@ -72,34 +61,35 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    if (argParser.is_subcommand_used("clean")) {
-        return runClean(cleanOutDirPath);
-    }
 
-    {
+    try {
         StargateConfig stargateConfig;
         ProjectConfig projectConfig;
 
-        projectConfig.setVerbose(isVerbose);
-
-        if (!configFilePath.empty()) {
-            projectConfig.setConfigPath(configFilePath);
-        }
+        Stargate stargate(stargateConfig);
 
         if (!outDirPath.empty()) {
             stargateConfig.setStargateDir(outDirPath);
         }
 
-        // Read project config
-        try {
-            projectConfig.readConfig();
-        } catch (const FatalException& e) {
-            spdlog::error("{}", e.what());
-            return EXIT_FAILURE;
+        if (argParser.is_subcommand_used("clean")) {
+            stargate.clean();
+            return EXIT_SUCCESS;
         }
 
-        Stargate stargate(stargateConfig);
+        // Read project config
+        if (!configFilePath.empty()) {
+            projectConfig.setConfigPath(configFilePath);
+        }
+
+        projectConfig.setVerbose(isVerbose);
+        projectConfig.readConfig();
+
         stargate.run(&projectConfig);
+
+    } catch (const FatalException& e) {
+        spdlog::error("{}", e.what());
+        return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;

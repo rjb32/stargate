@@ -86,3 +86,14 @@ void Stargate::writeTargetFileList(const ProjectTarget* target,
         out << path << "\n";
     }
 }
+
+void Stargate::clean() {
+    const auto& outDirPath = _config.getStargateDir();
+    if (!FileUtils::exists(outDirPath)) {
+        spdlog::info("Nothing to clean: {} does not exist", outDirPath);
+        return;
+    }
+
+    FileUtils::removeDirectory(outDirPath);
+    spdlog::info("Cleaned: {}", outDirPath);
+}

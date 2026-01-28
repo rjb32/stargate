@@ -13,6 +13,8 @@ public:
     Stargate(const StargateConfig& config);
     ~Stargate();
 
+    void clean();
+
     void run(const ProjectConfig* projectConfig);
 
 private:
