@@ -2,65 +2,80 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Important: never put Claude Code or Claude as a co-author.
-
 ## Project Overview
 
-Stargate is a build system tool for FPGA development, inspired by FuseSoc. It parses TOML project configuration files containing filesets and targets, then processes them for FPGA compilation workflows.
+Stargate is a C++20 configuration-driven build system for hardware design projects. It processes TOML configuration files to organize filesets and targets. The project includes Python bindings via scikit-build-core.
 
 ## Build Commands
 
 ```bash
-# Configure and build (from project root)
-cmake -B build
-cmake --build build
+# Initial setup
+./pull.sh                              # Initialize git submodules
+cmake -B build .                       # Configure CMake
+cd build && make -j8                   # Build
 
-# Add built executable to PATH
-source setup.sh
+# Development
+./build.sh                             # Install Python package in editable mode (uses uv)
+source setup.sh                        # Add to PATH and set sgc alias
 
-# Run stargate
-stargate -c <config.toml> -o <output_dir> [--verbose]
-```
-
-## Python Package
-
-The project includes a Python wrapper that can be built using scikit-build-core:
-```bash
-pip install -e .
+# Running
+stargate -c config.toml -o output_dir  # Run with config
+stargate clean -o output_dir           # Clean output
 ```
 
 ## Architecture
 
-### Library Structure
+```
+tools/stargate/     → CLI executable (main entry point)
+    └── sgc_stargate_s (library)
+        └── sgc_project_s (library) → TOML config parsing
+            └── sgc_common_s (library) → FileSet, FileUtils, exceptions
+```
 
-- **common/** (`sgc_common_s`) - Core utilities: FileSet, FileUtils, FatalException, Panic
-- **project/** (`sgc_project_s`) - TOML config parsing: ProjectConfig, ProjectTarget
-- **stargate/** (`sgc_stargate_s`) - Main compiler logic: Stargate, StargateConfig
-- **tools/stargate/** - CLI executable linking all libraries
+**Key directories:**
+- `common/` - Shared utilities (FileSet, FileSetCollector, FileUtils, exceptions)
+- `project/` - Project configuration parsing from TOML files
+- `stargate/` - Core orchestration logic
+- `tools/stargate/` - CLI entry point
+- `python/stargatecompiler/` - Python package wrapper
+- `external/` - Third-party libs (spdlog, argparse, toml++)
 
-### Key Classes
+## Coding Style (from CODING_STYLE.md)
 
-- `ProjectConfig` - Parses TOML config files containing filesets and targets
-- `ProjectTarget` - Represents a build target with associated filesets
-- `FileSet` - Collection of file patterns for a target
-- `StargateConfig` - Runtime configuration (output directory, verbosity)
-- `Stargate` - Main entry point that orchestrates the build
+IMPORTANT: read CODING_STYLE.md before starting any work.
 
-### Dependencies
+**Formatting:**
+- 90 char max line length (aim for ~80)
+- 4 spaces indentation, no tabs
+- Opening `{` on same line except for constructors (next line)
 
-External libraries in `external/`: tomlplusplus, spdlog, argparse (as git submodules)
+**Naming:**
+- Private members: `_member`
+- Methods: lowerCamelCase
 
-## Coding Style
+**Pointers & References:**
+- Primary style: raw pointers (`Type*`), not references
+- References only for STL containers
+- `std::unique_ptr` for owning pointers; never use `std::shared_ptr`
+- Never pass smart pointers as function arguments
 
-**IMPORTANT: Read CODING_STYLE.md before making any code changes.**
+**Classes:**
+- No work in constructors
+- Public section before private
+- Private members before private methods
+- Initialize all pointers to `nullptr` in declaration
+- Only getters/setters in headers; implementation in .cpp files
 
-Key points:
-- 4 spaces indentation, max 90 char lines (ideal ~80)
-- Opening brace on same line except for constructors (next line)
-- Private members prefixed with underscore: `_memberName`
-- Use `#include <stdlib.h>` style (not `<cstdlib>`)
-- Pass objects by pointer, STL containers by const reference
-- Never use `std::shared_ptr`, only `std::unique_ptr` for ownership
-- Never do work in constructors
-- Use exceptions over error codes; all exceptions derive from base exception class
-- Never `using namespace` in headers; never `using namespace std`
+**Includes order:**
+1. Current header file (blank line after)
+2. Standard library (`<stdlib.h>` style, not `<cstdlib>`)
+3. External libraries (spdlog, etc.)
+4. Project headers (outer to inner)
+5. Utilities/exceptions
+
+**Other:**
+- Never `using namespace` in headers; `using namespace std` OK in .cpp
+- Prefer `enum class`; trailing comma on last value
+- All exceptions must derive from `TuringException`
+- Use const extensively; prefer exceptions over error codes
+- Don't return STL containers; pass by reference instead

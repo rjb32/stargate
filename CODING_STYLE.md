@@ -1,4 +1,4 @@
-# TuringDB Project Coding Style Guidelines
+# Stargate Project Coding Style Guidelines
 
 ## General & meta-rules
 
@@ -14,9 +14,6 @@ Use blank lines to facilitate understanding. We are not limited by the vertical 
 
 **Make your code beautiful and cultivate your aesthetics sense**
 Try to make your code elegant, beautiful, clear, whenever possible.
-
-**Opinion of last resort**
-Remy Boutonnet as the main designer and maintainer of TuringDB provides the opinion of last resort on any code review, PR or element of style or C++ for turingdb.
 
 
 ## Formatting
@@ -34,12 +31,12 @@ We use 4 spaces indentation with spaces only. We do not use tabs.
 
 We use the #include \<stdlib.h\> style of standard includes, not #include \<cstdlib\>.
 
-Always follow the preferred order of includes in turingdb:
+Always follow the preferred order of includes in stargate:
 * First the header file of the current class being implemented if that is the case
 * Standard library headers
 * External libraries, such as spdlog
 * Then: an Outer-inner order relative to the current class, followed by utilities
-** Important turingdb header files
+** Important stargate header files
 ** Header files of your current component
 ** Utility classes, assert, exception classes
 
@@ -108,6 +105,8 @@ void MyClass::myFunc() {
 1. Never do using namespace in header files. This is a horribly bad practice because it contaminates all the cpp files that are including the header file.
 2. Never do using namespace std. We like to explicitly show that something is a standard container.
 3. We create namespaces with care and when it makes sense, such as for things as important as db or Log. Never do it on your own, ask around you if it makes sense.
+4. `using namespace std` is permitted in cpp files.
+5. Don't prefix your functions by db:: in general, this is very ugly
 
 ## Classes
 
@@ -213,7 +212,7 @@ void func(Type* obj) {
 ```
 
 ### Argument-passing style
-The primary argument-passing style in turingdb should be good old pointers, not references:
+The primary argument-passing style in stargate should be good old pointers, not references:
 ```cpp
 void MyClass::myFunction(Arg1* arg1, Arg2* arg2, Arg3* arg3) {
 }
@@ -246,7 +245,7 @@ Never pass smart pointers as function arguments.
 
 ### Ownership
 
-The primary type of pointer in turingdb is the good old pointer: MyType* mytype
+The primary type of pointer in stargate is the good old pointer: MyType* mytype
 
 std::uniqueçptr can be used to denote an "owning" pointer: that pointer is the unique place owning the existence of an object.
 
@@ -254,7 +253,7 @@ Generally speaking, the meaning of pointers if the following:
 * Good old pointer: non-owning pointer, unless otherwise specified
 * Unique pointer: owning pointer 
 
-Pay great attention to the ownership of your objects. In TuringDB we usually don't create and pass heap-allocated objects
+Pay great attention to the ownership of your objects. In stargate we usually don't create and pass heap-allocated objects
 freely as argument from function to function. Think first of the ownership structure, what class and which area of the codebase
 should own the objects of your new class. Have a clear and unique owner of these objects. If it is hard or impossible
 to manage ownership using good old pointers and new, or std::unique_ptr, it means that the structure of ownership is wrong.
@@ -341,28 +340,28 @@ Prefer to leave a comma at the end of the last alternative of an enum or enum cl
 
 ## Assertions
 
-Use assertions in turingdb to ensure that a critical property of the code is valid at a given point,
+Use assertions in stargate to ensure that a critical property of the code is valid at a given point,
 to check conditions without which the code can not absolutely proceed.
 
-Use only the bioassert API defined in BioAssert.h for assertions in turingdb.
+Use only the bioassert API defined in BioAssert.h for assertions in stargate.
 We decided that bioassert raises an exception if the assertion is not valid.
 Please do not catch that exception yourself. It is only try-catched in QueryInterpreter so that a given query does not crash the entire server.
 
 ## Exceptions
 
-Exceptions are used and allowed in turingdb.
+Exceptions are used and allowed in stargate.
 Prefer raising an exception by opposition to returning a boolean or an error code.
 
-TuringDB already has a quite extensive set of exception classes associated to different stages of query processing, 
+stargate already has a quite extensive set of exception classes associated to different stages of query processing, 
 such as AnalyzeException, PipelineException...etc.
 
-All exceptions in turingdb must derive from TuringException.
+All exceptions in stargate must derive from TuringException.
 
-Only old code in turingdb still uses booleans to indicate errors. This code have to be adapted over time.
+Only old code in stargate still uses booleans to indicate errors. This code have to be adapted over time.
 
 ## Concepts
 
-You can use C++ concepts in turingdb but please use them parsimoniously. The overall goal is to not add syntactical noise and clutter to the code.
+You can use C++ concepts in stargate but please use them parsimoniously. The overall goal is to not add syntactical noise and clutter to the code.
 
 ## Move semantics and rvalue references
 
