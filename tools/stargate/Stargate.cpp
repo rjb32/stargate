@@ -124,13 +124,13 @@ int main(int argc, char** argv) {
 
         // Handle build subcommand
         if (argParser.is_subcommand_used("build")) {
-            stargate.runBuildSection(&projectConfig, targetName);
+            stargate.runSection(&projectConfig, targetName, "build");
             return EXIT_SUCCESS;
         }
 
         // Handle run subcommand
         if (argParser.is_subcommand_used("run")) {
-            stargate.runRunSection(&projectConfig, targetName);
+            stargate.runSection(&projectConfig, targetName, "run");
             return EXIT_SUCCESS;
         }
 

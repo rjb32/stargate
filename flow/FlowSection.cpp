@@ -24,6 +24,7 @@ FlowSection* FlowSection::create(Flow* parent, const std::string& name) {
 }
 
 void FlowSection::addTask(FlowTask* task) {
+    task->_index = _tasks.size();
     _tasks.push_back(task);
     _taskNameMap[task->getName()] = task;
 }

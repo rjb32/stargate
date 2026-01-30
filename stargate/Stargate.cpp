@@ -57,8 +57,9 @@ void Stargate::runFlow(const ProjectConfig* projectConfig,
     }
 }
 
-void Stargate::runBuildSection(const ProjectConfig* projectConfig,
-                               const std::string& targetName) {
+void Stargate::runSection(const ProjectConfig* projectConfig,
+                          const std::string& targetName,
+                          const std::string& sectionName) {
     createOutputDir();
     writeTargets(projectConfig);
 
@@ -68,31 +69,12 @@ void Stargate::runBuildSection(const ProjectConfig* projectConfig,
     }
 
     Flow* flow = getTargetFlow(target);
-    FlowSection* buildSection = flow->getBuildSection();
-    if (!buildSection) {
-        panic("Flow '{}' does not have a build section", flow->getName());
+    FlowSection* section = flow->getSection(sectionName);
+    if (!section) {
+        panic("Flow '{}' does not have a '{}' section", flow->getName(), sectionName);
     }
 
-    executeSection(buildSection);
-}
-
-void Stargate::runRunSection(const ProjectConfig* projectConfig,
-                             const std::string& targetName) {
-    createOutputDir();
-    writeTargets(projectConfig);
-
-    const ProjectTarget* target = projectConfig->getTarget(targetName);
-    if (!target) {
-        panic("Target '{}' not found", targetName);
-    }
-
-    Flow* flow = getTargetFlow(target);
-    FlowSection* runSection = flow->getRunSection();
-    if (!runSection) {
-        panic("Flow '{}' does not have a run section", flow->getName());
-    }
-
-    executeSection(runSection);
+    executeSection(section);
 }
 
 void Stargate::executeTask(const ProjectConfig* projectConfig,
@@ -110,19 +92,11 @@ void Stargate::executeTask(const ProjectConfig* projectConfig,
 
     FlowTask* task = nullptr;
     FlowSection* taskSection = nullptr;
-    size_t taskID = 0;
 
     for (FlowSection* section : flow->sections()) {
-        const auto& tasks = section->tasks();
-        for (size_t i = 0; i < tasks.size(); i++) {
-            if (tasks[i]->getName() == taskName) {
-                task = tasks[i];
-                taskSection = section;
-                taskID = i;
-                break;
-            }
-        }
+        task = section->getTask(taskName);
         if (task) {
+            taskSection = section;
             break;
         }
     }
@@ -131,7 +105,11 @@ void Stargate::executeTask(const ProjectConfig* projectConfig,
         panic("Task '{}' not found in flow '{}'", taskName, flow->getName());
     }
 
-    if (!checkTaskDependencies(taskSection, taskID)) {
+    if (!checkSectionDependencies(flow, taskSection)) {
+        panic("Task '{}' has unmet section dependencies", taskName);
+    }
+
+    if (!checkTaskDependencies(taskSection, task->getIndex())) {
         panic("Task '{}' has unmet dependencies", taskName);
     }
 
@@ -284,6 +262,11 @@ void Stargate::executeSection(FlowSection* section) {
 
 void Stargate::executeSection(FlowSection* section, size_t startIdx, size_t endIdx) {
     const auto& tasks = section->tasks();
+    Flow* flow = section->getParent();
+
+    if (!checkSectionDependencies(flow, section)) {
+        panic("Section '{}' has unmet dependencies", section->getName());
+    }
 
     if (!checkTaskDependencies(section, startIdx)) {
         const FlowTask* task = tasks[startIdx];
@@ -295,6 +278,29 @@ void Stargate::executeSection(FlowSection* section, size_t startIdx, size_t endI
         spdlog::info("Executing task: {}", task->getName());
         task->execute();
     }
+}
+
+bool Stargate::checkSectionDependencies(Flow* flow, FlowSection* section) {
+    const auto& sections = flow->sections();
+
+    for (FlowSection* depSection : sections) {
+        if (depSection == section) {
+            break;
+        }
+
+        for (const FlowTask* task : depSection->tasks()) {
+            const TaskStatus::Status status = task->getStatus();
+            if (status != TaskStatus::Status::Success) {
+                spdlog::error(
+                    "Dependency section '{}' task '{}' has not completed successfully "
+                    "(status: {})",
+                    depSection->getName(), task->getName(), TaskStatus::toString(status));
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 bool Stargate::checkTaskDependencies(FlowSection* section, size_t taskIdx) {

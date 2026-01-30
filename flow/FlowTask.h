@@ -18,6 +18,7 @@ public:
     virtual void execute() = 0;
 
     FlowSection* getParent() const { return _parent; }
+    size_t getIndex() const { return _index; }
     TaskStatus::Status getStatus() const;
 
     void getOutputDir(std::string& result) const;
@@ -32,6 +33,7 @@ protected:
 
 private:
     FlowSection* _parent {nullptr};
+    size_t _index {0};
 };
 
 }

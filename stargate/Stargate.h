@@ -22,8 +22,9 @@ public:
     void clean();
 
     void runFlow(const ProjectConfig* projectConfig, const std::string& targetName);
-    void runBuildSection(const ProjectConfig* projectConfig, const std::string& targetName);
-    void runRunSection(const ProjectConfig* projectConfig, const std::string& targetName);
+    void runSection(const ProjectConfig* projectConfig,
+                    const std::string& targetName,
+                    const std::string& sectionName);
 
     void executeTask(const ProjectConfig* projectConfig,
                      const std::string& targetName,
@@ -47,6 +48,7 @@ private:
     Flow* getTargetFlow(const ProjectTarget* target);
     void executeSection(FlowSection* section);
     void executeSection(FlowSection* section, size_t startIdx, size_t endIdx);
+    bool checkSectionDependencies(Flow* flow, FlowSection* section);
     bool checkTaskDependencies(FlowSection* section, size_t taskIdx);
 };
 
