@@ -4,7 +4,10 @@ set(flow_sources
     FlowSection.cpp
     Flow.cpp
     FlowManager.cpp
-    VivadoFlow.cpp)
+    external/vivado/VivadoFlow.cpp
+    external/vivado/VivadoSynthTask.cpp
+    external/vivado/VivadoImplTask.cpp
+    external/vivado/VivadoBitstreamTask.cpp)
 
 add_library(sgc_flow_s STATIC ${flow_sources})
 

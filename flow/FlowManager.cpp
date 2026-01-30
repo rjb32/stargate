@@ -1,7 +1,7 @@
 #include "FlowManager.h"
 
 #include "Flow.h"
-#include "VivadoFlow.h"
+#include "external/vivado/VivadoFlow.h"
 
 using namespace stargate;
 

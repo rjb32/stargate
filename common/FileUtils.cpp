@@ -115,7 +115,7 @@ void FileUtils::expandGlob(const std::string& pattern,
             if (std::filesystem::exists(state.path)) {
                 std::string absPath;
                 absolute(state.path.string(), absPath);
-                results.push_back(absPath);
+                results.emplace_back(std::move(absPath));
             }
             continue;
         }

@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <iostream>
 
 #include <argparse/argparse.hpp>
 #include <spdlog/spdlog.h>
@@ -78,65 +79,16 @@ int main(int argc, char** argv) {
     // Add clean subcommand
     ArgumentParser cleanParser("clean");
     cleanParser.add_description("Remove the stargate output directory");
-    std::string cleanOutDirPath;
-    cleanParser.add_argument("-o", "-out_dir")
-        .nargs(1)
-        .default_value("")
-        .metavar("sgc.out")
-        .help("Path to the output directory to clean")
-        .store_into(cleanOutDirPath);
     argParser.add_subparser(cleanParser);
 
     // Add build subcommand
     ArgumentParser buildParser("build");
     buildParser.add_description("Execute the build section of the target's flow");
-    std::string buildConfigFilePath;
-    std::string buildOutDirPath;
-    std::string buildTargetName = DEFAULT_TARGET;
-    buildParser.add_argument("-c", "-config")
-        .nargs(1)
-        .default_value("")
-        .metavar("stargate.toml")
-        .help("Path to the config file")
-        .store_into(buildConfigFilePath);
-    buildParser.add_argument("-o", "-out_dir")
-        .nargs(1)
-        .default_value("")
-        .metavar("sgc.out")
-        .help("Path to the output directory")
-        .store_into(buildOutDirPath);
-    buildParser.add_argument("-target")
-        .nargs(1)
-        .default_value(DEFAULT_TARGET)
-        .metavar("target")
-        .help("Target name (default: default)")
-        .store_into(buildTargetName);
     argParser.add_subparser(buildParser);
 
     // Add run subcommand
     ArgumentParser runParser("run");
     runParser.add_description("Execute the run section of the target's flow");
-    std::string runConfigFilePath;
-    std::string runOutDirPath;
-    std::string runTargetName = DEFAULT_TARGET;
-    runParser.add_argument("-c", "-config")
-        .nargs(1)
-        .default_value("")
-        .metavar("stargate.toml")
-        .help("Path to the config file")
-        .store_into(runConfigFilePath);
-    runParser.add_argument("-o", "-out_dir")
-        .nargs(1)
-        .default_value("")
-        .metavar("sgc.out")
-        .help("Path to the output directory")
-        .store_into(runOutDirPath);
-    runParser.add_argument("-target")
-        .nargs(1)
-        .default_value(DEFAULT_TARGET)
-        .metavar("target")
-        .help("Target name (default: default)")
-        .store_into(runTargetName);
     argParser.add_subparser(runParser);
 
     try {
@@ -150,57 +102,37 @@ int main(int argc, char** argv) {
         StargateConfig stargateConfig;
         ProjectConfig projectConfig;
 
+        if (!outDirPath.empty()) {
+            stargateConfig.setStargateDir(outDirPath);
+        }
+
         Stargate stargate(stargateConfig);
         stargate.init();
 
         // Handle clean subcommand
         if (argParser.is_subcommand_used("clean")) {
-            if (!cleanOutDirPath.empty()) {
-                stargateConfig.setStargateDir(cleanOutDirPath);
-            }
             stargate.clean();
             return EXIT_SUCCESS;
         }
 
+        // Setup project config for commands that need it
+        if (!configFilePath.empty()) {
+            projectConfig.setConfigPath(configFilePath);
+        }
+        projectConfig.setVerbose(isVerbose);
+        projectConfig.readConfig();
+
         // Handle build subcommand
         if (argParser.is_subcommand_used("build")) {
-            if (!buildOutDirPath.empty()) {
-                stargateConfig.setStargateDir(buildOutDirPath);
-            }
-            if (!buildConfigFilePath.empty()) {
-                projectConfig.setConfigPath(buildConfigFilePath);
-            }
-            projectConfig.setVerbose(isVerbose);
-            projectConfig.readConfig();
-            stargate.build(&projectConfig, buildTargetName);
+            stargate.runBuildSection(&projectConfig, targetName);
             return EXIT_SUCCESS;
         }
 
         // Handle run subcommand
         if (argParser.is_subcommand_used("run")) {
-            if (!runOutDirPath.empty()) {
-                stargateConfig.setStargateDir(runOutDirPath);
-            }
-            if (!runConfigFilePath.empty()) {
-                projectConfig.setConfigPath(runConfigFilePath);
-            }
-            projectConfig.setVerbose(isVerbose);
-            projectConfig.readConfig();
-            stargate.runFlow(&projectConfig, runTargetName);
+            stargate.runRunSection(&projectConfig, targetName);
             return EXIT_SUCCESS;
         }
-
-        // Handle main command options
-        if (!outDirPath.empty()) {
-            stargateConfig.setStargateDir(outDirPath);
-        }
-
-        if (!configFilePath.empty()) {
-            projectConfig.setConfigPath(configFilePath);
-        }
-
-        projectConfig.setVerbose(isVerbose);
-        projectConfig.readConfig();
 
         // Handle task execution options
         if (!taskName.empty()) {
@@ -220,8 +152,8 @@ int main(int argc, char** argv) {
             return EXIT_SUCCESS;
         }
 
-        // Default: run the standard flow
-        stargate.run(&projectConfig);
+        // Default: print help
+        std::cout << argParser << std::endl;
 
     } catch (const FatalException& e) {
         spdlog::error("{}", e.what());

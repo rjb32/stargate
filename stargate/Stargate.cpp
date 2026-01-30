@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <optional>
 
 #include <spdlog/spdlog.h>
 
@@ -33,12 +34,31 @@ void Stargate::init() {
     _flowManager->init();
 }
 
-void Stargate::run(const ProjectConfig* projConfig) {
+void Stargate::runFlow(const ProjectConfig* projectConfig,
+                       const std::string& targetName) {
     createOutputDir();
-    writeTargets(projConfig);
+    writeTargets(projectConfig);
+
+    const ProjectTarget* target = projectConfig->getTarget(targetName);
+    if (!target) {
+        panic("Target '{}' not found", targetName);
+    }
+
+    Flow* flow = getTargetFlow(target);
+
+    FlowSection* buildSection = flow->getBuildSection();
+    if (buildSection) {
+        executeSection(buildSection);
+    }
+
+    FlowSection* runSection = flow->getRunSection();
+    if (runSection) {
+        executeSection(runSection);
+    }
 }
 
-void Stargate::build(const ProjectConfig* projectConfig, const std::string& targetName) {
+void Stargate::runBuildSection(const ProjectConfig* projectConfig,
+                               const std::string& targetName) {
     createOutputDir();
     writeTargets(projectConfig);
 
@@ -56,7 +76,8 @@ void Stargate::build(const ProjectConfig* projectConfig, const std::string& targ
     executeSection(buildSection);
 }
 
-void Stargate::runFlow(const ProjectConfig* projectConfig, const std::string& targetName) {
+void Stargate::runRunSection(const ProjectConfig* projectConfig,
+                             const std::string& targetName) {
     createOutputDir();
     writeTargets(projectConfig);
 
@@ -89,18 +110,17 @@ void Stargate::executeTask(const ProjectConfig* projectConfig,
 
     FlowTask* task = nullptr;
     FlowSection* taskSection = nullptr;
-    size_t taskIdx = 0;
+    size_t taskID = 0;
 
     for (FlowSection* section : flow->sections()) {
-        size_t idx = 0;
-        for (FlowTask* t : section->tasks()) {
-            if (t->getName() == taskName) {
-                task = t;
+        const auto& tasks = section->tasks();
+        for (size_t i = 0; i < tasks.size(); i++) {
+            if (tasks[i]->getName() == taskName) {
+                task = tasks[i];
                 taskSection = section;
-                taskIdx = idx;
+                taskID = i;
                 break;
             }
-            idx++;
         }
         if (task) {
             break;
@@ -111,7 +131,7 @@ void Stargate::executeTask(const ProjectConfig* projectConfig,
         panic("Task '{}' not found in flow '{}'", taskName, flow->getName());
     }
 
-    if (!checkTaskDependencies(taskSection, taskIdx)) {
+    if (!checkTaskDependencies(taskSection, taskID)) {
         panic("Task '{}' has unmet dependencies", taskName);
     }
 
@@ -132,43 +152,42 @@ void Stargate::executeTaskRange(const ProjectConfig* projectConfig,
 
     Flow* flow = getTargetFlow(target);
 
-    size_t startIdx = SIZE_MAX;
-    size_t endIdx = SIZE_MAX;
+    std::optional<size_t> startID;
+    std::optional<size_t> endID;
     FlowSection* taskSection = nullptr;
 
     for (FlowSection* section : flow->sections()) {
-        size_t idx = 0;
-        for (FlowTask* t : section->tasks()) {
-            if (t->getName() == startTaskName) {
-                startIdx = idx;
+        const auto& tasks = section->tasks();
+        for (size_t i = 0; i < tasks.size(); i++) {
+            if (tasks[i]->getName() == startTaskName) {
+                startID = i;
                 taskSection = section;
             }
-            if (t->getName() == endTaskName) {
-                endIdx = idx;
+            if (tasks[i]->getName() == endTaskName) {
+                endID = i;
                 if (!taskSection) {
                     taskSection = section;
                 }
             }
-            idx++;
         }
-        if (startIdx != SIZE_MAX && endIdx != SIZE_MAX) {
+        if (startID && endID) {
             break;
         }
     }
 
-    if (startIdx == SIZE_MAX) {
+    if (!startID) {
         panic("Start task '{}' not found in flow '{}'", startTaskName, flow->getName());
     }
 
-    if (endIdx == SIZE_MAX) {
+    if (!endID) {
         panic("End task '{}' not found in flow '{}'", endTaskName, flow->getName());
     }
 
-    if (startIdx > endIdx) {
+    if (*startID > *endID) {
         panic("Start task '{}' comes after end task '{}'", startTaskName, endTaskName);
     }
 
-    executeSection(taskSection, startIdx, endIdx);
+    executeSection(taskSection, *startID, *endID);
 }
 
 void Stargate::createOutputDir() {
@@ -283,11 +302,11 @@ bool Stargate::checkTaskDependencies(FlowSection* section, size_t taskIdx) {
 
     for (size_t i = 0; i < taskIdx; i++) {
         const FlowTask* depTask = tasks[i];
-        const TaskStatus status = depTask->getStatus();
-        if (status != TaskStatus::Success) {
+        const TaskStatus::Status status = depTask->getStatus();
+        if (status != TaskStatus::Status::Success) {
             spdlog::error(
                 "Dependency task '{}' has not completed successfully (status: {})",
-                depTask->getName(), taskStatusToString(status));
+                depTask->getName(), TaskStatus::toString(status));
             return false;
         }
     }

@@ -21,10 +21,9 @@ public:
     void init();
     void clean();
 
-    void run(const ProjectConfig* projectConfig);
-
-    void build(const ProjectConfig* projectConfig, const std::string& targetName);
     void runFlow(const ProjectConfig* projectConfig, const std::string& targetName);
+    void runBuildSection(const ProjectConfig* projectConfig, const std::string& targetName);
+    void runRunSection(const ProjectConfig* projectConfig, const std::string& targetName);
 
     void executeTask(const ProjectConfig* projectConfig,
                      const std::string& targetName,

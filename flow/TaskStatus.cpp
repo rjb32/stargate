@@ -56,44 +56,44 @@ std::string extractJsonString(const std::string& json, const std::string& key) {
 
 }
 
-const std::string& stargate::taskStatusToString(TaskStatus status) {
+const std::string& TaskStatus::toString(Status status) {
     switch (status) {
-        case TaskStatus::NotStarted:
+        case Status::NotStarted:
             return STATUS_NOT_STARTED;
 
-        case TaskStatus::InProgress:
+        case Status::InProgress:
             return STATUS_IN_PROGRESS;
 
-        case TaskStatus::Success:
+        case Status::Success:
             return STATUS_SUCCESS;
 
-        case TaskStatus::Failed:
+        case Status::Failed:
             return STATUS_FAILED;
     }
 
     return STATUS_NOT_STARTED;
 }
 
-TaskStatus stargate::taskStatusFromString(const std::string& str) {
+TaskStatus::Status TaskStatus::fromString(const std::string& str) {
     if (str == STATUS_SUCCESS) {
-        return TaskStatus::Success;
+        return Status::Success;
     } else if (str == STATUS_FAILED) {
-        return TaskStatus::Failed;
+        return Status::Failed;
     } else if (str == STATUS_IN_PROGRESS) {
-        return TaskStatus::InProgress;
+        return Status::InProgress;
     }
 
-    return TaskStatus::NotStarted;
+    return Status::NotStarted;
 }
 
-TaskStatus stargate::readTaskStatus(const std::string& statusFilePath) {
+TaskStatus::Status TaskStatus::read(const std::string& statusFilePath) {
     if (!FileUtils::exists(statusFilePath)) {
-        return TaskStatus::NotStarted;
+        return Status::NotStarted;
     }
 
     std::ifstream file(statusFilePath);
     if (!file) {
-        return TaskStatus::NotStarted;
+        return Status::NotStarted;
     }
 
     std::stringstream buffer;
@@ -101,13 +101,13 @@ TaskStatus stargate::readTaskStatus(const std::string& statusFilePath) {
     const std::string json = buffer.str();
 
     const std::string statusStr = extractJsonString(json, "status");
-    return taskStatusFromString(statusStr);
+    return fromString(statusStr);
 }
 
-void stargate::writeTaskStatus(const std::string& statusFilePath,
-                               TaskStatus status,
-                               int exitCode,
-                               const std::string& errorMessage) {
+void TaskStatus::write(const std::string& statusFilePath,
+                       Status status,
+                       int exitCode,
+                       const std::string& errorMessage) {
     std::ofstream file(statusFilePath);
     if (!file) {
         panic("Failed to write status file: {}", statusFilePath);
@@ -116,7 +116,7 @@ void stargate::writeTaskStatus(const std::string& statusFilePath,
     const std::string timestamp = getCurrentTimestamp();
 
     file << "{\n";
-    file << "    \"status\": \"" << taskStatusToString(status) << "\",\n";
+    file << "    \"status\": \"" << toString(status) << "\",\n";
     file << "    \"timestamp\": \"" << timestamp << "\",\n";
     file << "    \"exit_code\": " << exitCode << ",\n";
     file << "    \"error\": \"" << errorMessage << "\"\n";

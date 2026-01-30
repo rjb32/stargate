@@ -13,13 +13,17 @@ FlowTask::FlowTask(FlowSection* parent)
 {
 }
 
+void FlowTask::registerTask() {
+    _parent->addTask(this);
+}
+
 FlowTask::~FlowTask() {
 }
 
-TaskStatus FlowTask::getStatus() const {
+TaskStatus::Status FlowTask::getStatus() const {
     std::string statusPath;
     getStatusFilePath(statusPath);
-    return readTaskStatus(statusPath);
+    return TaskStatus::read(statusPath);
 }
 
 void FlowTask::getOutputDir(std::string& result) const {
@@ -38,7 +42,7 @@ void FlowTask::getStatusFilePath(std::string& result) const {
     result += "/status.json";
 }
 
-void FlowTask::writeStatus(TaskStatus status,
+void FlowTask::writeStatus(TaskStatus::Status status,
                            int exitCode,
                            const std::string& errorMessage) {
     std::string outputDir;
@@ -50,5 +54,5 @@ void FlowTask::writeStatus(TaskStatus status,
 
     std::string statusPath;
     getStatusFilePath(statusPath);
-    writeTaskStatus(statusPath, status, exitCode, errorMessage);
+    TaskStatus::write(statusPath, status, exitCode, errorMessage);
 }

@@ -9,9 +9,6 @@ namespace stargate {
 
 class Flow;
 class FlowTask;
-class VivadoSynthTask;
-class VivadoImplTask;
-class VivadoBitstreamTask;
 
 class FlowSection {
 public:
@@ -27,10 +24,7 @@ public:
     FlowTask* getTask(std::string_view name) const;
 
 private:
-    friend FlowTask;
-    friend VivadoSynthTask;
-    friend VivadoImplTask;
-    friend VivadoBitstreamTask;
+    friend class FlowTask;
 
     explicit FlowSection(Flow* parent, const std::string& name);
     ~FlowSection();

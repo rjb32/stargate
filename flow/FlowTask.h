@@ -18,14 +18,17 @@ public:
     virtual void execute() = 0;
 
     FlowSection* getParent() const { return _parent; }
-    TaskStatus getStatus() const;
+    TaskStatus::Status getStatus() const;
 
     void getOutputDir(std::string& result) const;
     void getStatusFilePath(std::string& result) const;
 
 protected:
     explicit FlowTask(FlowSection* parent);
-    void writeStatus(TaskStatus status, int exitCode, const std::string& errorMessage);
+    void registerTask();
+    void writeStatus(TaskStatus::Status status,
+                     int exitCode,
+                     const std::string& errorMessage);
 
 private:
     FlowSection* _parent {nullptr};
