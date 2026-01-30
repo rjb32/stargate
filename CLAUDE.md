@@ -4,7 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Stargate is a C++20 configuration-driven build system for hardware design projects. It processes TOML configuration files to organize filesets and targets. The project includes Python bindings via scikit-build-core.
+Stargate is a build system for FPGA-based hardware design projects.
+Stargate uses C++20. It processes TOML configuration files to organize filesets and targets. The project includes Python bindings via scikit-build-core.
 
 ## Build Commands
 
