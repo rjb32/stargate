@@ -30,8 +30,8 @@ void FileUtils::removeDirectory(const std::string& path) {
     }
 }
 
-std::string FileUtils::absolute(const std::string& path) {
-    return std::filesystem::absolute(path).string();
+void FileUtils::absolute(const std::string& path, std::string& result) {
+    result = std::filesystem::absolute(path).string();
 }
 
 namespace {
@@ -113,7 +113,9 @@ void FileUtils::expandGlob(const std::string& pattern,
 
         if (state.segmentIndex >= segments.size()) {
             if (std::filesystem::exists(state.path)) {
-                results.push_back(std::filesystem::absolute(state.path).string());
+                std::string absPath;
+                absolute(state.path.string(), absPath);
+                results.push_back(absPath);
             }
             continue;
         }

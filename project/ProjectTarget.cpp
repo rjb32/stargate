@@ -18,6 +18,10 @@ ProjectTarget* ProjectTarget::create(ProjectConfig* config, const std::string& n
     return target;
 }
 
-void ProjectTarget::addFileSet(FileSet* fileset) {
+void ProjectTarget::addFileSet(const FileSet* fileset) {
     _filesets.push_back(fileset);
+}
+
+void ProjectTarget::setFlowName(const std::string& flowName) {
+    _flowName = flowName;
 }

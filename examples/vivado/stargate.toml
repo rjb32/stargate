@@ -1,0 +1,6 @@
+[filesets]
+rtl = ["*.v"]
+
+[targets]
+flow = "vivado"
+filesets = ["rtl"]

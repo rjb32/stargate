@@ -21,11 +21,11 @@ ProjectConfig::ProjectConfig()
 }
 
 ProjectConfig::~ProjectConfig() {
-    for (auto& [name, target] : _targets) {
+    for (const auto& [name, target] : _targets) {
         delete target;
     }
 
-    for (auto& [name, fileset] : _filesets) {
+    for (const auto& [name, fileset] : _filesets) {
         delete fileset;
     }
 }
@@ -43,10 +43,19 @@ FileSet* ProjectConfig::getFileSet(const std::string& name) const {
     return it->second;
 }
 
+ProjectTarget* ProjectConfig::getTarget(const std::string& name) const {
+    const auto it = _targets.find(name);
+    if (it == _targets.end()) {
+        return nullptr;
+    }
+
+    return it->second;
+}
+
 void ProjectConfig::readConfig() {
     if (_configPath.empty()) {
         _configPath = CONFIG_DEFAULT_PATH;
-        _configPath = FileUtils::absolute(_configPath);
+        FileUtils::absolute(_configPath, _configPath);
     }
 
     if (!FileUtils::exists(_configPath)) {
@@ -70,15 +79,15 @@ void ProjectConfig::readConfig() {
     }
 }
 
-void ProjectConfig::dumpConfig() {
-    for (auto& [name, fileset] : _filesets) {
+void ProjectConfig::dumpConfig() const {
+    for (const auto& [name, fileset] : _filesets) {
         spdlog::info("==== File set: {}", fileset->getName());
         for (const auto& file : fileset->patterns()) {
             spdlog::info("  Pattern: {}", file);
         }
     }
 
-    for (auto& [name, target] : _targets) {
+    for (const auto& [name, target] : _targets) {
         spdlog::info("==== Target: {}", target->getName());
     }
 
@@ -137,6 +146,10 @@ void ProjectConfig::parseTargetProperty(ProjectTarget* target,
                 FileSet* filesetObj = getFileSet(*filesetName);
                 target->addFileSet(filesetObj);
             }
+        }
+    } else if (key == "flow") {
+        if (const auto& flowName = value.value<std::string>()) {
+            target->setFlowName(*flowName);
         }
     } else {
         panic("Invalid section '{}' in target {}", key, target->getName());

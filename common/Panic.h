@@ -1,8 +1,8 @@
 #pragma once
 
-#include <spdlog/fmt/fmt.h>
-
 #include "FatalException.h"
+
+#include <spdlog/fmt/fmt.h>
 
 namespace stargate {
 
