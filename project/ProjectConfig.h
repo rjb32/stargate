@@ -34,6 +34,8 @@ public:
 
     auto targets() const { return std::views::values(_targets); }
 
+    ProjectTarget* getTarget(const std::string& name) const;
+
     void setConfigPath(const std::string& configPath) { _configPath = configPath; }
 
     void readConfig();
@@ -51,7 +53,7 @@ private:
     void parseTargetProperty(ProjectTarget* target,
                              std::string_view key,
                              const toml::node& value);
-    void dumpConfig();
+    void dumpConfig() const;
 };
 
 }
