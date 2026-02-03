@@ -65,7 +65,7 @@ struct ChunkedSpan {
 
 ### Mutable Instance-to-Design Reference
 
-- `Instance::design` pointer is mutable (can be swapped during uniquification)
+- `Instance::model` pointer is mutable (can be swapped during uniquification)
 - This avoids cascading uniquification when only internal Design changes occur
 - Uniquification propagates upward only when interface/context changes are needed
 
@@ -106,13 +106,16 @@ Netlist
 | Netlist | Libraries, Designs, NameTable, AttributeTable, Epochs | Top Design, PrimitiveLibrary |
 | Library | Designs | - |
 | Design | Nets, DesignTerms, Instances | - |
-| Instance | InstTerms | Design (mutable pointer) |
-| Net (bit-level) | - | Connected InstTerms, Connected DesignTerms |
-| DesignTerm (bit-level) | - | Connected Net |
-| InstTerm (bit-level) | - | DesignTerm (by index), Connected Net |
-| BusNet | BusNetBits | - |
-| BusDesignTerm | BusDesignTermBits | - |
-| BusInstTerm | BusInstTermBits | - |
+| Instance | InstTerms | parent Design, model Design (mutable) |
+| Net (bit-level) | - | parent Design, Connected InstTerms, Connected DesignTerms |
+| DesignTerm (bit-level) | - | parent Design, Connected Net |
+| InstTerm (bit-level) | - | parent Instance, DesignTerm (by index), Connected Net |
+| BusNet | BusNetBits | parent Design |
+| BusNetBit | - | parent BusNet |
+| BusDesignTerm | BusDesignTermBits | parent Design |
+| BusDesignTermBit | - | parent BusDesignTerm |
+| BusInstTerm | BusInstTermBits | parent Instance |
+| BusInstTermBit | - | parent BusInstTerm |
 
 ### Connectivity Model
 
@@ -129,7 +132,7 @@ Netlist
   - `ScalarInstTerm` stores `scalarTermIndex` → index into `Design::scalarDesignTerms`
   - `BusInstTermBit` stores `busTermIndex` + `bitIndex` → index into `Design::busDesignTerms`, then bit within
 - When Design is uniquified, indices remain valid (term order preserved)
-- Only `Instance::design` pointer needs updating, not individual InstTerms
+- Only `Instance::model` pointer needs updating, not individual InstTerms
 
 ---
 
@@ -178,6 +181,7 @@ private:
 struct BitNet {
     NetID id;
     Name name;
+    Design* parent;            // Containing design
     ChunkedSpan<BitInstTerm*> connectedInstTerms;
     ChunkedSpan<BitDesignTerm*> connectedDesignTerms;
 };
@@ -187,13 +191,14 @@ struct ScalarNet : BitNet {
 };
 
 struct BusNetBit : BitNet {
-    BusNet* parent;
+    BusNet* bus;               // Parent bus (renamed from 'parent' for clarity)
     uint32_t index;
 };
 
 struct BusNet {
     NetID id;
     Name name;
+    Design* parent;            // Containing design
     int32_t msb;
     int32_t lsb;
     ChunkedSpan<BusNetBit> bits;
@@ -205,6 +210,7 @@ struct BusNet {
 ```cpp
 struct BitDesignTerm {
     DesignTermID id;
+    Design* parent;            // Containing design
     Direction direction;
     BitNet* connectedNet;
 };
@@ -214,13 +220,14 @@ struct ScalarDesignTerm : BitDesignTerm {
 };
 
 struct BusDesignTermBit : BitDesignTerm {
-    BusDesignTerm* parent;
+    BusDesignTerm* bus;        // Parent bus (renamed from 'parent' for clarity)
     uint32_t index;
 };
 
 struct BusDesignTerm {
     DesignTermID id;
     Name name;
+    Design* parent;            // Containing design
     Direction direction;
     int32_t msb;
     int32_t lsb;
@@ -243,7 +250,7 @@ struct ScalarInstTerm : BitInstTerm {
 };
 
 struct BusInstTermBit : BitInstTerm {
-    BusInstTerm* parent;
+    BusInstTerm* bus;          // Parent bus
     uint16_t busTermIndex;     // Index into design's busDesignTerms
     uint16_t bitIndex;         // Index within that bus
 };
@@ -262,7 +269,8 @@ struct BusInstTerm {
 struct Instance {
     InstanceID id;
     Name name;
-    Design* design;  // Mutable - can swap on uniquification
+    Design* parent;  // Containing design
+    Design* model;   // Instantiated design (mutable - can swap on uniquification)
     uint32_t flags = 0;
 
     ChunkedSpan<ScalarInstTerm> scalarInstTerms;
@@ -733,7 +741,7 @@ struct BitDesignTermOccurrence {
 1. **Internal Design changes** (nets, logic inside): Uniquify only the affected Design
 2. **Interface/context changes** (ports, connections): Propagate uniquification upward
 3. **Minimal uniquification**: Use LCA (Lowest Common Ancestor) approach
-4. If only `Instance::design` pointer changes (no interface changes), no upward propagation
+4. If only `Instance::model` pointer changes (no interface changes), no upward propagation
 
 ### Pending References
 
@@ -1248,7 +1256,7 @@ for (const auto& endpoint : explorator.explore(driverTerm, ExploreDirection::ToL
 ## 13. Synchronization Model
 
 - Synchronization occurs at a higher level (epoch barriers), not on individual objects
-- No atomics on `Instance::design` pointer
+- No atomics on `Instance::model` pointer
 - Level-by-level processing with barriers between levels
 - Within a level, parallel work can proceed without locking
 - Changes are collected per-worker, then merged at commit
