@@ -103,8 +103,8 @@ Netlist
 
 | Entity | Contains | References |
 |--------|----------|------------|
-| Netlist | Libraries, Designs, NameTable, AttributeTable, Epochs | Top Design, PrimitiveLibrary |
-| Library | Designs | - |
+| Netlist | Libraries, NameTable, AttributeTable, Epochs | Top Design, PrimitiveLibrary |
+| Library | Designs (with name index) | - |
 | Design | Nets, DesignTerms, Instances | - |
 | Instance | InstTerms | parent Design, model Design (mutable) |
 | Net (bit-level) | - | parent Design, Connected InstTerms, Connected DesignTerms |
@@ -378,10 +378,6 @@ struct NetlistEpoch {
 class Netlist {
 public:
     Design* getTopDesign() const;
-    Design* findDesign(DesignID id) const;
-    Design* findDesign(Name name) const;
-
-    ChunkedRange<Design> designs() const;
 
     NameTable* nameTable();
     const NameTable* nameTable() const;
@@ -389,8 +385,19 @@ public:
     AttributeTable* attributeTable();
     const AttributeTable* attributeTable() const;
 
+    // Library access (designs reside in libraries)
     PrimitiveLibrary* primitiveLibrary() const;
     std::span<Library*> libraries() const;
+
+    // Helper: find design by name across all libraries (O(n) in libraries)
+    Design* findDesign(Name name) const {
+        for (Library* lib : _libraries) {
+            if (Design* d = lib->findDesign(name)) {
+                return d;
+            }
+        }
+        return nullptr;
+    }
 
 private:
     NetlistEpoch* _currentEpoch = nullptr;
@@ -440,10 +447,11 @@ private:
 
 ### Library Structure
 
-Designs are organized into libraries. Primitive libraries can only contain primitive designs.
+Designs are organized into libraries. Primitive libraries can only contain primitive designs. Design names must be unique within a library.
 
 ```cpp
-struct Library {
+class Library {
+public:
     LibraryID id;
     Name name;
     uint32_t flags = 0;
@@ -452,7 +460,26 @@ struct Library {
 
     bool isPrimitiveOnly() const { return flags & FlagPrimitiveOnly; }
 
+    // Add a design to the library (name must be unique)
+    void addDesign(Design* design) {
+        designs.push_back(design);
+        _designsByName[design->name] = design;
+    }
+
+    // Lookup by name - O(1)
+    Design* findDesign(Name name) const {
+        auto it = _designsByName.find(name);
+        return (it != _designsByName.end()) ? it->second : nullptr;
+    }
+
+    // Iteration
+    std::span<Design*> getDesigns() const { return designs; }
+
+protected:
     std::vector<Design*> designs;
+
+private:
+    std::unordered_map<Name, Design*> _designsByName;
 };
 ```
 
