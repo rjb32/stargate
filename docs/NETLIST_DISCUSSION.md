@@ -103,7 +103,7 @@ Netlist
 
 | Entity | Contains | References |
 |--------|----------|------------|
-| Netlist | Libraries, NameTable, AttributeTable, Epochs | Top Design, PrimitiveLibrary |
+| Netlist | Libraries, NameTable, AttributeTable, NameIndex, Epochs | Top Design, PrimitiveLibrary |
 | Library | Designs (with name index) | - |
 | Design | Nets, DesignTerms, Instances | - |
 | Instance | InstTerms | parent Design, model Design (mutable) |
@@ -385,6 +385,9 @@ public:
     AttributeTable* attributeTable();
     const AttributeTable* attributeTable() const;
 
+    NameIndex* nameIndex();
+    const NameIndex* nameIndex() const;
+
     // Library access (designs reside in libraries)
     PrimitiveLibrary* primitiveLibrary() const;
     std::span<Library*> libraries() const;
@@ -403,6 +406,7 @@ private:
     NetlistEpoch* _currentEpoch = nullptr;
     std::unique_ptr<NameTable> _nameTable;
     std::unique_ptr<AttributeTable> _attributeTable;
+    std::unique_ptr<NameIndex> _nameIndex;
 
     PrimitiveLibrary* _primitiveLibrary = nullptr;
     std::vector<Library*> _libraries;
@@ -440,6 +444,49 @@ private:
     std::unordered_map<ObjectID, std::unordered_map<Name, AttrValue>> _attrs;
 };
 ```
+
+### Name Index
+
+Optional name-based lookup for objects within designs. Built on demand, either explicitly or on first lookup.
+
+```cpp
+class NameIndex {
+public:
+    // Explicit bulk indexing
+    void indexDesign(Design* design);
+    void indexLibrary(Library* library);
+
+    // Lookups - auto-indexes on first access if not already indexed
+    Instance* findInstance(Design* design, Name name);
+    ScalarNet* findScalarNet(Design* design, Name name);
+    BusNet* findBusNet(Design* design, Name name);
+    ScalarDesignTerm* findScalarDesignTerm(Design* design, Name name);
+    BusDesignTerm* findBusDesignTerm(Design* design, Name name);
+
+    // Check if indexed
+    bool isDesignIndexed(Design* design) const;
+    bool isLibraryIndexed(Library* library) const;
+
+    // Invalidate (call after epoch change)
+    void invalidate();
+    void invalidateDesign(Design* design);
+    void invalidateLibrary(Library* library);
+
+private:
+    struct DesignIndex {
+        std::unordered_map<Name, Instance*> instances;
+        std::unordered_map<Name, ScalarNet*> scalarNets;
+        std::unordered_map<Name, BusNet*> busNets;
+        std::unordered_map<Name, ScalarDesignTerm*> scalarDesignTerms;
+        std::unordered_map<Name, BusDesignTerm*> busDesignTerms;
+    };
+
+    std::unordered_map<Design*, DesignIndex> _designIndices;
+    std::unordered_set<Library*> _indexedLibraries;
+};
+```
+
+**Note:** Library already has its own `_designsByName` index (always built). The `NameIndex::indexLibrary()` is for consistency and marks the library as indexed for `isLibraryIndexed()` checks.
 
 ---
 
