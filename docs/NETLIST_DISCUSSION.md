@@ -8,39 +8,39 @@ This document captures the ongoing design discussion for a hierarchical FPGA net
 
 1. **Cache-efficient iteration**: Objects stored in contiguous containers (`std::vector`) to maximize cache locality during traversal
 2. **Hierarchical multi-instantiation**: Support for DAG hierarchy where the same Design can be instantiated multiple times
-3. **Epoch-based object allocation**: New objects are always allocated in a new epoch; existing objects in old epochs may only be mutated by the Uniquifier at commit time
+3. **Space-based object allocation**: New objects are always allocated in a new space; existing objects in old spaces may only be mutated by the Uniquifier at commit time
 4. **Minimal uniquification**: When transforming specific instantiation contexts, only uniquify the minimum necessary hierarchy
 5. **Dual representation support**: A hierarchical netlist (source of truth) and a fast flat netlist (constructed on demand for transformations)
 
 ### Key Assumptions
 
 - The netlist is read-only during parallel transformations; only the Uniquifier mutates it at commit time
-- New objects are always created in a new epoch; the Uniquifier may also update existing objects in old epochs (e.g., appending ChunkedSpan chunks, updating connectivity)
+- New objects are always created in a new space; the Uniquifier may also update existing objects in old spaces (e.g., appending ChunkedSpan chunks, updating connectivity)
 - Modifications are batched and committed atomically via the Uniquifier
 - Level-by-level processing (bottom-up) is the primary parallelism model
 - No intra-level visibility of changes is required during parallel transformations
 - Compaction can be deferred; dump/reload is acceptable for major cleanup
-- Undo/history is not required; old epochs are discarded after commit
+- Undo/history is not required; old spaces are discarded after commit
 
 ---
 
 ## 2. Core Design Principles
 
-### Epoch-Based Mutation Model
+### Space-Based Mutation Model
 
-- A `NetlistEpoch` contains the `std::vector` containers that own all netlist objects
-- **New objects** are always allocated in a **new** epoch's vectors
-- **Existing objects** in old epochs may be **mutated by the Uniquifier at commit time** (e.g., appending a chunk to a Design's `ChunkedSpan`, updating connectivity on an existing net)
+- A `NetlistSpace` contains the `std::vector` containers that own all netlist objects
+- **New objects** are always allocated in a **new** space's vectors
+- **Existing objects** in old spaces may be **mutated by the Uniquifier at commit time** (e.g., appending a chunk to a Design's `ChunkedSpan`, updating connectivity on an existing net)
 - During parallel transformations (between commits), the netlist is effectively **read-only** — workers only collect changes, they do not modify the netlist
-- A `Design`'s objects may span multiple epochs via `ChunkedSpan`: the original objects remain in the old epoch, new objects live in the new epoch, and the Design's ChunkedSpan is updated to reference both
+- A `Design`'s objects may span multiple spaces via `ChunkedSpan`: the original objects remain in the old space, new objects live in the new space, and the Design's ChunkedSpan is updated to reference both
 
-**Analogy: generational garbage collection.** This model is similar to a generational GC. New objects are allocated in the young generation (new epoch), old objects remain in older generations (old epochs), and the collector (Uniquifier) updates cross-generation references (ChunkedSpans, model pointers) during a stop-the-world pause (commit barrier). Compaction serves the same role as GC heap compaction — consolidating fragmented spans into contiguous storage. Like generational GC, the key bet is that most objects survive untouched: only a small fraction of Designs are affected by a given transformation.
+**Analogy: generational garbage collection.** This model is similar to a generational GC. New objects are allocated in the young generation (new space), old objects remain in older generations (old spaces), and the collector (Uniquifier) updates cross-generation references (ChunkedSpans, model pointers) during a stop-the-world pause (commit barrier). Compaction serves the same role as GC heap compaction — consolidating fragmented spans into contiguous storage. Like generational GC, the key bet is that most objects survive untouched: only a small fraction of Designs are affected by a given transformation.
 
-### ChunkedSpan for Cross-Epoch Spanning
+### ChunkedSpan for Cross-Space Spanning
 
-All netlist objects (nets, instances, terms, etc.) are allocated in the `std::vector` containers within `NetlistEpoch`. Objects in a `Design`, `Instance`, or `BusNet` are **not** owned by those structs—they are owned by the epoch. `ChunkedSpan` is a lightweight view that references contiguous ranges within those epoch-level vectors.
+All netlist objects (nets, instances, terms, etc.) are allocated in the `std::vector` containers within `NetlistSpace`. Objects in a `Design`, `Instance`, or `BusNet` are **not** owned by those structs—they are owned by the space. `ChunkedSpan` is a lightweight view that references contiguous ranges within those space-level vectors.
 
-When a Design is first constructed, all its objects land in a single epoch vector, so each `ChunkedSpan` has one chunk. After a transformation creates a new epoch and appends new objects (e.g., new nets added to an existing Design), the `ChunkedSpan` gains an additional chunk pointing into the new epoch's vector. Each chunk is a `std::span` into a different epoch's vector.
+When a Design is first constructed, all its objects land in a single `NetlistSpace` vector, so each `ChunkedSpan` has one chunk. After a transformation creates a new space and appends new objects (e.g., new nets added to an existing Design), the `ChunkedSpan` gains an additional chunk pointing into the new space's vector. Each chunk is a `std::span` into a vector belonging to a different `NetlistSpace`.
 
 ```cpp
 template<typename T, size_t MaxChunks = 3>
@@ -67,7 +67,7 @@ struct ChunkedSpan {
 };
 ```
 
-- Each span references a contiguous range within a `NetlistEpoch` vector
+- Each span references a contiguous range within a `NetlistSpace` vector
 - Fixed array of 3 spans maximum (inlined if-statements, no loop overhead)
 - Compaction is required if a 4th chunk would be needed
 - Provides `ChunkedRange` with iterators for range-based for loops
@@ -77,14 +77,14 @@ struct ChunkedSpan {
 Two distinct cases depending on whether the change is design-wide or occurrence-specific:
 
 **Design-wide** (all instances see the change):
-1. A new `ScalarNet` is allocated in the **new epoch**'s `scalarNets` vector
-2. At commit, the Uniquifier updates the existing Design's `scalarNets` ChunkedSpan, appending a new chunk that points into the new epoch's vector
+1. A new `ScalarNet` is allocated in the **new space**'s `scalarNets` vector
+2. At commit, the Uniquifier updates the existing Design's `scalarNets` ChunkedSpan, appending a new chunk that points into the new space's vector
 3. All `Instance::model` pointers still reference the same Design — no pointer updates needed
 4. Every instance of this Design automatically sees the new net
 
 **Occurrence-specific** (only one instantiation context is affected):
-1. A new `ScalarNet` is allocated in the **new epoch**'s `scalarNets` vector
-2. The Uniquifier creates a **uniquified copy** of the Design in the new epoch, copying the old ChunkedSpans and appending the new chunk
+1. A new `ScalarNet` is allocated in the **new space**'s `scalarNets` vector
+2. The Uniquifier creates a **uniquified copy** of the Design in the new space, copying the old ChunkedSpans and appending the new chunk
 3. Only the specific `Instance::model` pointer along the target path is updated to point to the new Design copy
 4. Other instances of the original Design are unaffected
 
@@ -373,11 +373,11 @@ struct Design {
 };
 ```
 
-### Netlist Epoch
+### Netlist Space
 
 ```cpp
-struct NetlistEpoch {
-    NetlistEpoch* parent;  // For structural sharing (may be nullptr)
+struct NetlistSpace {
+    NetlistSpace* parent;  // For structural sharing (may be nullptr)
 
     // Append-only containers
     std::vector<ScalarNet> scalarNets;
@@ -428,7 +428,7 @@ public:
     }
 
 private:
-    NetlistEpoch* _currentEpoch = nullptr;
+    NetlistSpace* _currentSpace = nullptr;
     std::unique_ptr<NameTable> _nameTable;
     std::unique_ptr<AttributeTable> _attributeTable;
     std::unique_ptr<NameIndex> _nameIndex;
@@ -492,7 +492,7 @@ public:
     bool isDesignIndexed(Design* design) const;
     bool isLibraryIndexed(Library* library) const;
 
-    // Invalidate (call after epoch change)
+    // Invalidate (call after space change)
     void invalidate();
     void invalidateDesign(Design* design);
     void invalidateLibrary(Library* library);
@@ -822,7 +822,7 @@ struct BitDesignTermOccurrence {
 
 - Occurrences may become invalid after uniquification
 - Users must be aware that committing changes invalidates previously obtained occurrences
-- Re-resolution against the new epoch is required after commit
+- Re-resolution against the new space is required after commit
 
 ---
 
@@ -831,7 +831,7 @@ struct BitDesignTermOccurrence {
 ### Design Principles
 
 - The `Uniquifier` class owns the change collection and commit logic
-- Users do not manipulate epochs directly; the Uniquifier handles epoch management
+- Users do not manipulate spaces directly; the Uniquifier handles space management
 - Changes are recorded (not applied) during collection, then applied atomically on commit
 - Validation occurs at commit time, not during change collection
 
@@ -861,7 +861,7 @@ using AnyBusNetRef = MaybeNewRef<BusNetRef, PendingBusNetRef>;
 // ... etc
 ```
 
-**Note on resolution**: After `commit()`, pending references are not automatically resolved to actual pointers. Transformations typically don't need to access created objects after commit. If needed, objects can be looked up by name in the new epoch.
+**Note on resolution**: After `commit()`, pending references are not automatically resolved to actual pointers. Transformations typically don't need to access created objects after commit. If needed, objects can be looked up by name in the new space.
 
 ### Uniquifier Interface
 
@@ -921,7 +921,7 @@ public:
 
     // --- Commit ---
 
-    void commit();  // Apply all changes, create new epoch, discard old
+    void commit();  // Apply all changes, create new space, discard old
     void clear();   // Discard pending changes without committing
 
 private:
@@ -991,7 +991,7 @@ InstTerm:
 Separate containers per type for cache efficiency:
 
 ```cpp
-struct NetlistEpoch {
+struct NetlistSpace {
     std::vector<ScalarNet> scalarNets;
     std::vector<BusNet> busNets;
     std::vector<BusNetBit> busNetBits;
@@ -1070,7 +1070,7 @@ public:
     void connect(BitNet* net, BitInstTerm* term);
     void connect(BitNet* net, BitDesignTerm* term);
 
-    // Finalize (creates the initial epoch)
+    // Finalize (creates the initial space)
     void finalize();
 
 private:
@@ -1105,8 +1105,8 @@ private:
 
 ### Behavior
 
-- Compaction creates a new epoch with all objects stored contiguously
-- Old epochs are discarded after compaction
+- Compaction creates a new space with all objects stored contiguously
+- Old spaces are discarded after compaction
 - All `ChunkedSpan`s are reduced to single spans
 - Pointers are updated to point to new locations
 - Caller explicitly decides when to compact (no auto-compaction)
@@ -1354,7 +1354,7 @@ for (const auto& endpoint : explorator.explore(driverTerm, ExploreDirection::ToL
 
 ## 13. Synchronization Model
 
-- Synchronization occurs at a higher level (epoch barriers), not on individual objects
+- Synchronization occurs at a higher level (space barriers), not on individual objects
 - No atomics on `Instance::model` pointer
 - Level-by-level processing with barriers between levels
 - Within a level, parallel work can proceed without locking
@@ -1385,10 +1385,10 @@ This section documents decisions made on previously open questions.
    - `BusInstTermBit` stores `busTermIndex` + `bitIndex` (index into `busDesignTerms`, then bit within)
    - Rationale: Stable indices when adding terms; explicit structure
 
-2. **BusNetBit storage**: **Global container in epoch**
-   - All `BusNetBit` objects stored in `NetlistEpoch::busNetBits`
+2. **BusNetBit storage**: **Global container in space**
+   - All `BusNetBit` objects stored in `NetlistSpace::busNetBits`
    - `BusNet::bits` is a `ChunkedSpan` into this container
-   - Rationale: Consistency with other object types; simpler epoch management
+   - Rationale: Consistency with other object types; simpler space management
 
 ### Flat Netlist
 
@@ -1399,10 +1399,10 @@ This section documents decisions made on previously open questions.
 
 ### Attributes
 
-4. **AttributeTable location**: **In Netlist (not in epoch)**
-   - `AttributeTable` is owned by `Netlist`, persists across epochs
+4. **AttributeTable location**: **In Netlist (not in space)**
+   - `AttributeTable` is owned by `Netlist`, persists across spaces
    - Uniquifier updates attributes during commit
-   - Rationale: Attributes are sparse; no benefit from epoch-based immutability
+   - Rationale: Attributes are sparse; no benefit from space-based immutability
 
 ### API Details
 
@@ -1414,7 +1414,7 @@ This section documents decisions made on previously open questions.
 
 6. **Pending reference resolution**: **Caller doesn't need resolution**
    - Transformations typically don't need to access created objects after commit
-   - If needed, objects can be looked up by name in the new epoch
+   - If needed, objects can be looked up by name in the new space
    - No resolution map or post-commit resolve API required
 
 ### Serialization
@@ -1450,7 +1450,7 @@ This section documents decisions made on previously open questions.
 3. Consider error handling strategy (exceptions vs error codes per CODING_STYLE.md)
 4. Define Cap'n Proto schema for netlist serialization
 5. Implement core data structures (Name, NameTable, IDs, basic objects)
-6. Implement NetlistEpoch and ChunkedSpan (including `data()` for single-chunk access)
+6. Implement NetlistSpace and ChunkedSpan (including `data()` for single-chunk access)
 7. Implement Library and Design structures
 8. Implement Netlist with basic iteration
 9. Implement PrimitiveLibrary and primitive pin index namespaces
