@@ -103,8 +103,8 @@ Two distinct cases depending on whether the change is design-wide or occurrence-
 ### Name Interning
 
 - Object names stored in a `NameTable` (string interning)
-- Objects store `Name` (4 bytes) instead of `std::string`
-- Same string always yields the same `Name`
+- Objects store `NameID` (4 bytes) instead of `std::string`
+- Same string always yields the same `NameID`
 
 ---
 
@@ -172,7 +172,7 @@ struct DesignTermID { uint32_t value; };
 struct InstTermID { uint32_t value; };
 struct DesignID { uint32_t value; };
 struct LibraryID { uint32_t value; };
-struct Name { uint32_t value; };
+struct NameID { uint32_t value; };
 ```
 
 ### Direction Enum
@@ -190,11 +190,11 @@ enum class Direction : uint8_t {
 ```cpp
 class NameTable {
 public:
-    Name getName(std::string_view str);
-    std::string_view getString(Name name) const;
+    NameID getName(std::string_view str);
+    std::string_view getString(NameID name) const;
 
 private:
-    std::unordered_map<std::string, Name> _stringToName;
+    std::unordered_map<std::string, NameID> _stringToName;
     std::vector<std::string> _nameToString;
 };
 ```
@@ -205,7 +205,7 @@ private:
 // Base for bit-level connectable nets
 struct BitNet {
     NetID id;
-    Name name;
+    NameID name;
     Design* parent;            // Containing design
     ChunkedSpan<BitInstTerm*> connectedInstTerms;
     ChunkedSpan<BitDesignTerm*> connectedDesignTerms;
@@ -222,7 +222,7 @@ struct BusNetBit : BitNet {
 
 struct BusNet {
     NetID id;
-    Name name;
+    NameID name;
     Design* parent;            // Containing design
     int32_t msb;
     int32_t lsb;
@@ -241,7 +241,7 @@ struct BitDesignTerm {
 };
 
 struct ScalarDesignTerm : BitDesignTerm {
-    Name name;
+    NameID name;
 };
 
 struct BusDesignTermBit : BitDesignTerm {
@@ -251,7 +251,7 @@ struct BusDesignTermBit : BitDesignTerm {
 
 struct BusDesignTerm {
     DesignTermID id;
-    Name name;
+    NameID name;
     Design* parent;            // Containing design
     Direction direction;
     int32_t msb;
@@ -293,7 +293,7 @@ struct BusInstTerm {
 ```cpp
 struct Instance {
     InstanceID id;
-    Name name;
+    NameID name;
     Design* parent;  // Containing design
     Design* model;   // Instantiated design (mutable - can swap on uniquification)
     uint32_t flags = 0;
@@ -350,7 +350,7 @@ struct Instance {
 
 struct Design {
     DesignID id;
-    Name name;
+    NameID name;
     uint32_t flags = 0;
 
     // Flag bit definitions
@@ -418,7 +418,7 @@ public:
     std::span<Library*> libraries() const;
 
     // Helper: find design by name across all libraries (O(n) in libraries)
-    Design* findDesign(Name name) const {
+    Design* findDesign(NameID name) const {
         for (Library* lib : _libraries) {
             if (Design* d = lib->findDesign(name)) {
                 return d;
@@ -457,16 +457,16 @@ private:
 ```cpp
 class AttributeTable {
 public:
-    void set(ObjectID obj, Name key, AttrValue value);
-    AttrValue* get(ObjectID obj, Name key);
-    const AttrValue* get(ObjectID obj, Name key) const;
-    void remove(ObjectID obj, Name key);
+    void set(ObjectID obj, NameID key, AttrValue value);
+    AttrValue* get(ObjectID obj, NameID key);
+    const AttrValue* get(ObjectID obj, NameID key) const;
+    void remove(ObjectID obj, NameID key);
 
     void forEach(ObjectID obj,
-                 std::function<void(Name, const AttrValue&)> callback) const;
+                 std::function<void(NameID, const AttrValue&)> callback) const;
 
 private:
-    std::unordered_map<ObjectID, std::unordered_map<Name, AttrValue>> _attrs;
+    std::unordered_map<ObjectID, std::unordered_map<NameID, AttrValue>> _attrs;
 };
 ```
 
@@ -482,11 +482,11 @@ public:
     void indexLibrary(Library* library);
 
     // Lookups - auto-indexes on first access if not already indexed
-    Instance* findInstance(Design* design, Name name);
-    ScalarNet* findScalarNet(Design* design, Name name);
-    BusNet* findBusNet(Design* design, Name name);
-    ScalarDesignTerm* findScalarDesignTerm(Design* design, Name name);
-    BusDesignTerm* findBusDesignTerm(Design* design, Name name);
+    Instance* findInstance(Design* design, NameID name);
+    ScalarNet* findScalarNet(Design* design, NameID name);
+    BusNet* findBusNet(Design* design, NameID name);
+    ScalarDesignTerm* findScalarDesignTerm(Design* design, NameID name);
+    BusDesignTerm* findBusDesignTerm(Design* design, NameID name);
 
     // Check if indexed
     bool isDesignIndexed(Design* design) const;
@@ -499,11 +499,11 @@ public:
 
 private:
     struct DesignIndex {
-        std::unordered_map<Name, Instance*> instances;
-        std::unordered_map<Name, ScalarNet*> scalarNets;
-        std::unordered_map<Name, BusNet*> busNets;
-        std::unordered_map<Name, ScalarDesignTerm*> scalarDesignTerms;
-        std::unordered_map<Name, BusDesignTerm*> busDesignTerms;
+        std::unordered_map<NameID, Instance*> instances;
+        std::unordered_map<NameID, ScalarNet*> scalarNets;
+        std::unordered_map<NameID, BusNet*> busNets;
+        std::unordered_map<NameID, ScalarDesignTerm*> scalarDesignTerms;
+        std::unordered_map<NameID, BusDesignTerm*> busDesignTerms;
     };
 
     std::unordered_map<Design*, DesignIndex> _designIndices;
@@ -525,7 +525,7 @@ Designs are organized into libraries. Primitive libraries can only contain primi
 class Library {
 public:
     LibraryID id;
-    Name name;
+    NameID name;
     uint32_t flags = 0;
 
     static constexpr uint32_t FlagPrimitiveOnly = 1 << 0;
@@ -539,7 +539,7 @@ public:
     }
 
     // Lookup by name - O(1)
-    Design* findDesign(Name name) const {
+    Design* findDesign(NameID name) const {
         auto it = _designsByName.find(name);
         return (it != _designsByName.end()) ? it->second : nullptr;
     }
@@ -551,7 +551,7 @@ protected:
     std::vector<Design*> designs;
 
 private:
-    std::unordered_map<Name, Design*> _designsByName;
+    std::unordered_map<NameID, Design*> _designsByName;
 };
 ```
 
@@ -874,16 +874,16 @@ public:
 
     // --- Structural Additions ---
 
-    PendingScalarNetRef addScalarNet(Path context, Name name);
-    PendingBusNetRef addBusNet(Path context, Name name,
+    PendingScalarNetRef addScalarNet(Path context, NameID name);
+    PendingBusNetRef addBusNet(Path context, NameID name,
                                 int32_t msb, int32_t lsb);
 
-    PendingInstanceRef addInstance(Path context, Name name,
+    PendingInstanceRef addInstance(Path context, NameID name,
                                    Design* designToInstantiate);
 
     PendingScalarDesignTermRef addScalarDesignTerm(Path context,
-                                                    Name name, Direction dir);
-    PendingBusDesignTermRef addBusDesignTerm(Path context, Name name,
+                                                    NameID name, Direction dir);
+    PendingBusDesignTermRef addBusDesignTerm(Path context, NameID name,
                                               Direction dir, int32_t msb, int32_t lsb);
 
     // --- Structural Removals ---
@@ -915,8 +915,8 @@ public:
 
     // --- Attributes ---
 
-    void setAttribute(InstanceOccurrence occ, Name key, AttrValue val);
-    void setAttribute(NetOccurrence occ, Name key, AttrValue val);
+    void setAttribute(InstanceOccurrence occ, NameID key, AttrValue val);
+    void setAttribute(NetOccurrence occ, NameID key, AttrValue val);
     // ... etc
 
     // --- Commit ---
@@ -1053,17 +1053,17 @@ public:
     explicit NetlistBuilder(Netlist* netlist);
 
     // Design creation
-    Design* createDesign(Name name);
+    Design* createDesign(NameID name);
     void setTopDesign(Design* design);
 
     // Object creation within a design
-    ScalarNet* addScalarNet(Design* design, Name name);
-    BusNet* addBusNet(Design* design, Name name, int32_t msb, int32_t lsb);
+    ScalarNet* addScalarNet(Design* design, NameID name);
+    BusNet* addBusNet(Design* design, NameID name, int32_t msb, int32_t lsb);
 
-    Instance* addInstance(Design* design, Name name, Design* instDesign);
+    Instance* addInstance(Design* design, NameID name, Design* instDesign);
 
-    ScalarDesignTerm* addScalarDesignTerm(Design* design, Name name, Direction dir);
-    BusDesignTerm* addBusDesignTerm(Design* design, Name name, Direction dir,
+    ScalarDesignTerm* addScalarDesignTerm(Design* design, NameID name, Direction dir);
+    BusDesignTerm* addBusDesignTerm(Design* design, NameID name, Direction dir,
                                      int32_t msb, int32_t lsb);
 
     // Connectivity
@@ -1128,7 +1128,7 @@ public:
 
     struct FlatBitNet {
         uint32_t id;
-        Name name;
+        NameID name;
         BitNetOccurrence origin;  // Provenance to hierarchical
         std::span<FlatBitInstTerm*> connectedTerms;
     };
@@ -1449,7 +1449,7 @@ This section documents decisions made on previously open questions.
 2. Design the iteration API for combined bit-level traversal (`bitNets()`, `bitDesignTerms()`, etc.)
 3. Consider error handling strategy (exceptions vs error codes per CODING_STYLE.md)
 4. Define Cap'n Proto schema for netlist serialization
-5. Implement core data structures (Name, NameTable, IDs, basic objects)
+5. Implement core data structures (NameID, NameTable, IDs, basic objects)
 6. Implement NetlistSpace and ChunkedSpan (including `data()` for single-chunk access)
 7. Implement Library and Design structures
 8. Implement Netlist with basic iteration
