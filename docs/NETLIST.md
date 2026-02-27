@@ -1165,7 +1165,7 @@ private:
 
 ### Purpose
 
-A flat netlist is constructed on demand for transformations that work on a flattened view (e.g., multi-driver resolution). It is a separate class from `Netlist`.
+A flat netlist is constructed on demand for transformations that work on a flattened view. It is a separate class from `Netlist`.
 
 ### Design
 
@@ -1287,6 +1287,12 @@ struct EquipotentialEndpoint {
 struct EquipotentialNet {
     BitNetOccurrence net;
 };
+
+// Full equipotential result
+struct Equipotential {
+    std::vector<EquipotentialEndpoint> endpoints;
+    std::vector<EquipotentialNet> nets;
+};
 ```
 
 ### Range Types
@@ -1308,8 +1314,8 @@ public:
     Iterator begin() const;
     Iterator end() const;
 
-    // Convenience: collect all endpoints into a vector
-    std::vector<EquipotentialEndpoint> collect() const;
+    // Convenience: collect all endpoints into result
+    void collect(Equipotential& result) const;
 };
 
 class EquipotentialNetRange {
@@ -1319,7 +1325,7 @@ public:
     Iterator begin() const;
     Iterator end() const;
 
-    std::vector<EquipotentialNet> collect() const;
+    void collect(Equipotential& result) const;
 };
 ```
 
