@@ -1231,9 +1231,25 @@ The `EquipotentialExplorator` traverses connectivity across hierarchy to find al
 An equipotential is the set of all electrically connected points across hierarchy. Starting from a net or term, the exploration:
 1. Follows connectivity through hierarchical instances (InstTerm → DesignTerm inside → internal net → recurse)
 2. Follows connectivity upward through ports (DesignTerm → InstTerm on parent → net at parent level → recurse)
-3. Stops at:
-   - **Primitive InstTerms**: terminals on leaf instances (no further hierarchy inside)
+3. **Traverses system primitives transparently** (see below)
+4. Stops at:
+   - **Primitive InstTerms**: terminals on non-system leaf instances (no further hierarchy inside)
    - **Boundary DesignTerms**: ports of the bounding design
+
+### System Primitive Traversal
+
+SGC_ASSIGN and SGC_ALIAS instances are **transparent** to the explorator — they are not endpoints. When the exploration reaches a term on a system primitive, it crosses through to the other term and continues on the net connected to it.
+
+**SGC_ASSIGN** — directional traversal:
+- Arriving at `I`: cross to `O` only in `Bidirectional` or `ToLoads` mode (following driver → load direction)
+- Arriving at `O`: cross to `I` only in `Bidirectional` or `ToDrivers` mode (following load → driver direction)
+- The assign is otherwise skipped (e.g., arriving at `O` in `ToLoads` mode does not cross back)
+
+**SGC_ALIAS** — bidirectional traversal:
+- Arriving at either `A` or `B`: always cross to the other side regardless of `ExploreDirection`
+- Both ports are InOut, so the alias is transparent in all exploration modes
+
+In both cases, if the other term is unconnected (nullptr net), the traversal stops at that term without reporting it as an endpoint.
 
 ### Bounding Box
 
@@ -1395,6 +1411,14 @@ for (const auto& net : explorator.exploreNets(startNet)) {
 // Fanout analysis: find all loads driven by this output
 for (const auto& endpoint : explorator.explore(driverTerm, ExploreDirection::ToLoads)) {
     // Process load terminals
+}
+
+// System primitives are transparent — assigns and aliases are crossed automatically.
+// Given: netA --[SGC_ASSIGN.I]-[SGC_ASSIGN.O]-- netB --[DFF.D]
+// Starting from netA, the explorator crosses the assign and reaches DFF.D.
+BitNetOccurrence netA = { path, srcNet };
+for (const auto& endpoint : explorator.explore(netA, ExploreDirection::ToLoads)) {
+    // endpoint is DFF.D, not SGC_ASSIGN.I
 }
 ```
 
