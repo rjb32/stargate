@@ -1437,7 +1437,125 @@ for (const auto& endpoint : explorator.explore(netA, ExploreDirection::ToLoads))
 
 ---
 
-## 13. Synchronization Model
+## 13. Levelize
+
+### Purpose
+
+The `Levelize` class computes the instantiation depth of each `Design` in the hierarchy and provides a range of designs per level. This is the foundation for level-by-level processing: transformations iterate over levels bottom-up, processing all designs at a given level in parallel before moving to the next.
+
+### Level Assignment
+
+Levels are assigned bottom-up from the leaves of the instantiation DAG:
+
+- **Level 0**: Leaf designs (primitives, or designs with no instances)
+- **Level N**: A design whose deepest child instance has model at level N−1
+
+Formally, for a design D:
+```
+level(D) = 0                                          if D has no instances
+level(D) = 1 + max{ level(inst.model) | inst ∈ D }   otherwise
+```
+
+Because the hierarchy is a DAG (a Design can be instantiated multiple times), the level of a Design is unique regardless of which instantiation path is considered.
+
+### Example
+
+```
+top          (level 2)
+├── cpu_0 : cpu   (level 1)
+│   ├── alu_0 : alu   (level 0, primitive)
+│   └── reg_0 : regfile   (level 0, primitive)
+├── cpu_1 : cpu   (same Design as cpu_0, still level 1)
+└── mem_0 : sram  (level 0, primitive)
+```
+
+Levelize produces three levels:
+| Level | Designs |
+|-------|---------|
+| 0 | alu, regfile, sram |
+| 1 | cpu |
+| 2 | top |
+
+### Class Definition
+
+```cpp
+// A lightweight view over a single level
+class Level {
+public:
+    uint32_t index() const;
+    std::span<Design* const> designs() const;
+
+private:
+    uint32_t _index;
+    std::span<Design* const> _designs;
+};
+
+class Levelize {
+public:
+    Levelize(const Netlist& netlist);
+
+    uint32_t numLevels() const;
+
+    // Range of Design* at a given level
+    std::span<Design* const> designsAtLevel(uint32_t level) const;
+
+    // Range of Level views (iterable in order from level 0 upward)
+    LevelRange levels() const;
+
+private:
+    // Designs grouped by level: _levels[i] contains all designs at level i
+    std::vector<std::vector<Design*>> _levels;
+};
+```
+
+`LevelRange` is a lightweight range whose iterator yields `Level` values, enabling range-based for loops over all levels.
+
+### Usage
+
+Bottom-up iteration using `levels()`:
+
+```cpp
+Levelize levelize(netlist);
+
+for (auto level : levelize.levels()) {
+    // level.index() is the level number, level.designs() is the span
+    parallelFor(level.designs(), [&](Design* design) {
+        transform(design);
+    });
+    // Barrier: commit changes before moving to next level
+    uniquifier.commit();
+}
+```
+
+Top-down iteration (e.g., for propagating constraints downward):
+
+```cpp
+for (auto level : levelize.levels() | std::views::reverse) {
+    parallelFor(level.designs(), [&](Design* design) {
+        propagate(design);
+    });
+}
+```
+
+Index-based access is also available via `designsAtLevel()`:
+
+```cpp
+for (uint32_t lvl = 0; lvl < levelize.numLevels(); ++lvl) {
+    auto designs = levelize.designsAtLevel(lvl);
+    // ...
+}
+```
+
+### Characteristics
+
+- Constructed from a `Netlist`; recomputed after structural changes that alter the hierarchy (e.g., adding or removing instances)
+- Construction is a single bottom-up traversal of the design DAG (linear in the number of designs)
+- Each `Design` appears exactly once, at exactly one level
+- Designs at the same level have no parent-child relationships between them, so they can be processed independently in parallel
+
+---
+
+## 14. Synchronization Model
 
 - Synchronization occurs at a higher level (space barriers), not on individual objects
 - No atomics on `Instance::model` pointer
@@ -1447,7 +1565,7 @@ for (const auto& endpoint : explorator.explore(netA, ExploreDirection::ToLoads))
 
 ---
 
-## 14. Primary Transformation Use Cases
+## 15. Primary Transformation Use Cases
 
 | Transformation | Objects Touched | Structural Changes |
 |---------------|-----------------|-------------------|
@@ -1459,7 +1577,7 @@ for (const auto& endpoint : explorator.explore(netA, ExploreDirection::ToLoads))
 
 ---
 
-## 15. Design Decisions
+## 16. Design Decisions
 
 This section documents decisions made on previously open questions.
 
@@ -1528,7 +1646,7 @@ This section documents decisions made on previously open questions.
 
 ---
 
-## 16. Next Steps
+## 17. Next Steps
 
 1. Define `AttributeValue` type and its supported value types
 2. Design the iteration API for combined bit-level traversal (`bitNets()`, `bitDesignTerms()`, etc.)
