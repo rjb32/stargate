@@ -6,7 +6,7 @@ This document captures the ongoing design discussion for a hierarchical FPGA net
 
 ### Primary Goals
 
-1. **Cache-efficient iteration**: Objects stored in contiguous containers (`std::vector`) to maximize cache locality during traversal
+1. **Cache-efficient iteration**: Objects stored in contiguous containers to maximize cache locality during traversal
 2. **Hierarchical multi-instantiation**: Support for DAG hierarchy where the same Design can be instantiated multiple times
 3. **Space-based object allocation**: New objects are always allocated in a new space; existing objects in old spaces may only be mutated by the Uniquifier at commit time
 4. **Minimal uniquification**: When transforming specific instantiation contexts, only uniquify the minimum necessary hierarchy
@@ -38,7 +38,7 @@ This document captures the ongoing design discussion for a hierarchical FPGA net
 
 ### ChunkedSpan for Cross-Space Spanning
 
-All netlist objects (nets, instances, terms, etc.) are allocated in the `std::vector` containers within `NetlistSpace`. Objects in a `Design`, `Instance`, or `BusNet` are **not** owned by those structs—they are owned by the space. `ChunkedSpan` is a lightweight view that references contiguous ranges within those space-level vectors.
+All netlist objects (nets, instances, terms, etc.) are allocated in the `std::vector` containers within `NetlistSpace`. Objects in a `Design`, `Instance`, or `BusNet` are **not** owned by those structs, they are owned by the space. `ChunkedSpan` is a lightweight view that references contiguous ranges within those space-level vectors.
 
 When a Design is first constructed, all its objects land in a single `NetlistSpace` vector, so each `ChunkedSpan` has one chunk. After a transformation creates a new space and appends new objects (e.g., new nets added to an existing Design), the `ChunkedSpan` gains an additional chunk pointing into the new space's vector. Each chunk is a `std::span` into a vector belonging to a different `NetlistSpace`.
 
@@ -565,6 +565,19 @@ Primitives are leaf-level designs with no internal netlist objects (no nets, no 
 - Primitive designs have no nets and no instances, only DesignTerms
 - Instances of primitives have single-chunk storage for InstTerms (guaranteed O(1) indexed access)
 
+### System Primitives (SYSTEM Library)
+
+System primitives are internal primitives used by the compiler to represent structural relationships that have no direct hardware counterpart. They belong to the **SYSTEM** library and are always available in the netlist. System primitives come first in the `PrimitiveKind` enum.
+
+| Primitive | Pins | Purpose |
+|-----------|------|---------|
+| `SGC_ASSIGN` | `I` (Input), `O` (Output) | Directional assignment of one net to another. Represents `assign O = I;` semantics — the driver flows from I to O. |
+| `SGC_ALIAS` | `A` (InOut), `B` (InOut) | Bidirectional alias between two nets. A and B are electrically equivalent with no implied direction. |
+
+**SGC_ASSIGN** models a directional net-to-net assignment. Since the netlist does not support direct net-to-net connections, an SGC_ASSIGN instance bridges two nets with explicit direction: the net connected to `I` drives the net connected to `O`.
+
+**SGC_ALIAS** models a bidirectional equivalence between two nets. Both ports are InOut — neither side is the driver. This is used for cases like Verilog `alias` or VHDL signal aliasing where two nets are electrically identical.
+
 ### PrimitiveKind Enum
 
 ```cpp
@@ -572,6 +585,12 @@ Primitives are leaf-level designs with no internal netlist objects (no nets, no 
 // 0 = not a primitive instance
 enum class PrimitiveKind : uint16_t {
     None = 0,
+
+    // System primitives (SYSTEM library)
+    SGC_ASSIGN,
+    SGC_ALIAS,
+
+    // Technology primitives
     LUT1, LUT2, LUT3, LUT4, LUT5, LUT6,
     DFF, DFFE, DFFR, DFFRE, DFFS, DFFSE,
     BUF, INV,
@@ -604,6 +623,10 @@ public:
         return designs[index];
     }
 
+    // System primitive accessors
+    Design* getAssign() const { return get(PrimitiveKind::SGC_ASSIGN); }
+    Design* getAlias() const { return get(PrimitiveKind::SGC_ALIAS); }
+
     // Direct accessors
     Design* getLUT1() const { return get(PrimitiveKind::LUT1); }
     Design* getLUT2() const { return get(PrimitiveKind::LUT2); }
@@ -625,6 +648,10 @@ public:
     Design* getDSP48() const { return get(PrimitiveKind::DSP48); }
 
     // Category checks using PrimitiveKind
+    static bool isSystemPrimitive(PrimitiveKind kind) {
+        return kind >= PrimitiveKind::SGC_ASSIGN && kind <= PrimitiveKind::SGC_ALIAS;
+    }
+
     static bool isLUT(PrimitiveKind kind) {
         return kind >= PrimitiveKind::LUT1 && kind <= PrimitiveKind::LUT6;
     }
@@ -644,6 +671,17 @@ public:
 Compile-time constants define pin positions for fast O(1) access. Scalar and bus pins use separate index spaces.
 
 ```cpp
+// System primitives - all scalar pins
+namespace SGC_ASSIGNPins {
+    constexpr uint16_t I = 0;
+    constexpr uint16_t O = 1;
+}
+
+namespace SGC_ALIASPins {
+    constexpr uint16_t A = 0;
+    constexpr uint16_t B = 1;
+}
+
 // LUTs - all scalar pins
 namespace LUT1Pins {
     constexpr uint16_t I0 = 0;
@@ -733,6 +771,16 @@ namespace DSP48Pins {
 ### Fast Primitive Access Examples
 
 ```cpp
+// Get assign driver and load nets
+Instance* assignInst = ...;
+ScalarInstTerm* driver = assignInst->getPrimitiveScalarTerm(SGC_ASSIGNPins::I);
+ScalarInstTerm* load   = assignInst->getPrimitiveScalarTerm(SGC_ASSIGNPins::O);
+
+// Get alias endpoints
+Instance* aliasInst = ...;
+ScalarInstTerm* sideA = aliasInst->getPrimitiveScalarTerm(SGC_ALIASPins::A);
+ScalarInstTerm* sideB = aliasInst->getPrimitiveScalarTerm(SGC_ALIASPins::B);
+
 // Get LUT output
 Instance* lutInst = ...;
 ScalarInstTerm* outTerm = lutInst->getPrimitiveScalarTerm(LUT4Pins::O);
