@@ -1174,34 +1174,40 @@ class FlatNetlist {
 public:
     static std::unique_ptr<FlatNetlist> create(const Netlist& netlist);
 
-    struct FlatBitNet {
+    // connectedTerms layout: [drivers | bidirectional | receivers]
+    // drivers span:   covers [drivers | bidirectional]
+    // receivers span: covers [bidirectional | receivers]
+    struct FlatNet {
         uint32_t id;
         NameID name;
         BitNetOccurrence origin;  // Provenance to hierarchical
-        std::span<FlatBitInstTerm*> connectedTerms;
+        std::span<FlatTerm*> connectedTerms;
+        std::span<FlatTerm*> drivers;    // subspan: drivers + bidirectional
+        std::span<FlatTerm*> receivers;  // subspan: bidirectional + receivers
     };
 
-    struct FlatBitInstTerm {
+    struct FlatTerm {
         uint32_t id;
         BitInstTermOccurrence origin;
-        FlatBitNet* connectedNet;
+        FlatNet* connectedNet;
     };
 
     struct FlatInstance {
         uint32_t id;
         InstanceOccurrence origin;
-        std::span<FlatBitInstTerm> instTerms;
+        std::span<FlatTerm> instTerms;
     };
 
     // Contiguous storage
-    std::span<FlatBitNet> nets() const;
+    std::span<FlatNet> nets() const;
     std::span<FlatInstance> instances() const;
-    std::span<FlatBitInstTerm> instTerms() const;
+    std::span<FlatTerm> terms() const;
 
 private:
-    std::vector<FlatBitNet> _nets;
+    std::vector<FlatNet> _nets;
     std::vector<FlatInstance> _instances;
-    std::vector<FlatBitInstTerm> _instTerms;
+    std::vector<FlatTerm> _terms;
+    std::vector<FlatTerm*> _termRefs;  // backing storage for FlatNet spans
 };
 ```
 
@@ -1209,8 +1215,8 @@ private:
 
 - Constructed fresh for each transformation (fast construction is feasible)
 - **No caching**: fresh construction per transformation is sufficient
-- **Pure bit-level**: no bus structure preserved; bus bits appear as individual `FlatBitNet`
-- **Assign/Alias dissolution**: The flat netlist transparently traverses SGC_ASSIGN and SGC_ALIAS system primitives during construction. These primitives are dissolved — they do not appear as instances in the flat netlist. Nets connected through assigns or aliases are merged into a single `FlatBitNet`, so consumers of the flat netlist see direct connectivity without intermediate system primitives.
+- **Pure bit-level**: no bus structure preserved; bus bits appear as individual `FlatNet`
+- **Assign/Alias dissolution**: The flat netlist transparently traverses SGC_ASSIGN and SGC_ALIAS system primitives during construction. These primitives are dissolved — they do not appear as instances in the flat netlist. Nets connected through assigns or aliases are merged into a single `FlatNet`, so consumers of the flat netlist see direct connectivity without intermediate system primitives.
 - Flat objects carry provenance back to hierarchical objects
 - Uses contiguous containers for cache efficiency
 - Bidirectional connectivity at flat level
@@ -1472,8 +1478,8 @@ This section documents decisions made on previously open questions.
 ### Flat Netlist
 
 3. **Bus structure preservation**: **Pure bit-level (no bus structure)**
-   - Flat netlist contains only `FlatBitNet`, no `FlatBusNet`
-   - Bus bits appear as individual `FlatBitNet` with names like `"bus[3]"`
+   - Flat netlist contains only `FlatNet`, no `FlatBusNet`
+   - Bus bits appear as individual `FlatNet` with names like `"bus[3]"`
    - Rationale: Simpler implementation; sufficient for MDR and other transformations
 
 ### Attributes
