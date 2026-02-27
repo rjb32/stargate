@@ -1210,6 +1210,7 @@ private:
 - Constructed fresh for each transformation (fast construction is feasible)
 - **No caching**: fresh construction per transformation is sufficient
 - **Pure bit-level**: no bus structure preserved; bus bits appear as individual `FlatBitNet`
+- **Assign/Alias dissolution**: The flat netlist transparently traverses SGC_ASSIGN and SGC_ALIAS system primitives during construction. These primitives are dissolved — they do not appear as instances in the flat netlist. Nets connected through assigns or aliases are merged into a single `FlatBitNet`, so consumers of the flat netlist see direct connectivity without intermediate system primitives.
 - Flat objects carry provenance back to hierarchical objects
 - Uses contiguous containers for cache efficiency
 - Bidirectional connectivity at flat level
