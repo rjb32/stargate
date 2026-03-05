@@ -309,12 +309,12 @@ struct Instance {
     static constexpr uint32_t PrimitiveKindMask = 0xFFFF0000;
     static constexpr uint32_t InstanceFlagsMask = 0x0000FFFF;
 
-    PrimitiveKind primitiveKind() const {
+    PrimitiveKind getPrimitiveKind() const {
         return static_cast<PrimitiveKind>((flags & PrimitiveKindMask) >> PrimitiveKindShift);
     }
 
     bool isPrimitive() const {
-        return primitiveKind() != PrimitiveKind::None;
+        return getPrimitiveKind() != PrimitiveKind::None;
     }
 
     void setPrimitiveKind(PrimitiveKind kind) {
@@ -404,17 +404,17 @@ class Netlist {
 public:
     Design* getTopDesign() const;
 
-    NameTable* nameTable();
-    const NameTable* nameTable() const;
+    NameTable* getNameTable();
+    const NameTable* getNameTable() const;
 
-    AttributeTable* attributeTable();
-    const AttributeTable* attributeTable() const;
+    AttributeTable* getAttributeTable();
+    const AttributeTable* getAttributeTable() const;
 
-    NameIndex* nameIndex();
-    const NameIndex* nameIndex() const;
+    NameIndex* getNameIndex();
+    const NameIndex* getNameIndex() const;
 
     // Library access (designs reside in libraries)
-    PrimitiveLibrary* primitiveLibrary() const;
+    PrimitiveLibrary* getPrimitiveLibrary() const;
     std::span<Library*> libraries() const;
 
     // Helper: find design by name across all libraries (O(n) in libraries)
@@ -519,7 +519,7 @@ private:
 
 ### Library Structure
 
-Designs are organized into libraries. Primitive libraries can only contain primitive designs. Design names must be unique within a library.
+Designs are organized into libraries. The netlist has exactly one `PrimitiveLibrary`, which can only contain primitive designs. Non-primitive libraries must reject primitive designs. Design names must be unique within a library.
 
 ```cpp
 class Library {
@@ -533,7 +533,11 @@ public:
     bool isPrimitiveOnly() const { return flags & FlagPrimitiveOnly; }
 
     // Add a design to the library (name must be unique)
+    // Throws if a primitive design is added to a non-primitive library
     void addDesign(Design* design) {
+        if (design->isPrimitive() && !isPrimitiveOnly()) {
+            throw TuringException("Cannot add primitive design to non-primitive library");
+        }
         designs.push_back(design);
         _designsByName[design->name] = design;
     }
@@ -561,7 +565,8 @@ Primitives are leaf-level designs with no internal netlist objects (no nets, no 
 
 **Invariants:**
 - Primitive designs have `Design::FlagPrimitive` set
-- Primitive designs can only exist in libraries with `Library::FlagPrimitiveOnly`
+- Primitive designs can only exist in the `PrimitiveLibrary` (which has `Library::FlagPrimitiveOnly`)
+- Non-primitive libraries must not contain primitive designs (enforced by `addDesign`)
 - Primitive designs have no nets and no instances, only DesignTerms
 - Instances of primitives have single-chunk storage for InstTerms (guaranteed O(1) indexed access)
 
@@ -797,11 +802,11 @@ BusInstTerm* dataOutA = bramInst->getPrimitiveBusTerm(BRAM18Pins::DOA);
 BusInstTermBit* addrBit5 = bramInst->getPrimitiveBusTermBit(BRAM18Pins::ADDRA, 5);
 
 // Check primitive kind directly from instance (no pointer comparison needed)
-if (PrimitiveLibrary::isLUT(inst->primitiveKind())) {
+if (PrimitiveLibrary::isLUT(inst->getPrimitiveKind())) {
     // Handle LUT
 }
 
-if (inst->primitiveKind() == PrimitiveKind::BRAM18) {
+if (inst->getPrimitiveKind() == PrimitiveKind::BRAM18) {
     // Handle BRAM18 specifically
 }
 ```
@@ -1407,7 +1412,7 @@ for (const auto& endpoint : explorator.explore(clockNet)) {
     if (endpoint.isPrimitiveInstTerm()) {
         auto termOcc = endpoint.asPrimitiveInstTerm();
         Instance* inst = termOcc.bitInstTerm->instance;  // Back pointer to parent
-        if (PrimitiveLibrary::isFlipFlop(inst->primitiveKind())) {
+        if (PrimitiveLibrary::isFlipFlop(inst->getPrimitiveKind())) {
             // Found a flip-flop clock input
         }
     } else {
@@ -1418,7 +1423,7 @@ for (const auto& endpoint : explorator.explore(clockNet)) {
 
 // Find all nets on an equipotential (for debugging/analysis)
 for (const auto& net : explorator.exploreNets(startNet)) {
-    std::cout << "Net: " << netlist->nameTable()->getString(net.net.bitNet->name) << "\n";
+    std::cout << "Net: " << netlist->getNameTable()->getString(net.net.bitNet->name) << "\n";
 }
 
 // Fanout analysis: find all loads driven by this output
@@ -1482,7 +1487,7 @@ Levelize produces three levels:
 // A lightweight view over a single level
 class Level {
 public:
-    uint32_t index() const;
+    uint32_t getIndex() const;
     std::span<Design* const> designs() const;
 
 private:
@@ -1494,7 +1499,7 @@ class Levelize {
 public:
     Levelize(const Netlist& netlist);
 
-    uint32_t numLevels() const;
+    uint32_t getNumLevels() const;
 
     // Range of Design* at a given level
     std::span<Design* const> designsAtLevel(uint32_t level) const;
@@ -1518,7 +1523,7 @@ Bottom-up iteration using `levels()`:
 Levelize levelize(netlist);
 
 for (auto level : levelize.levels()) {
-    // level.index() is the level number, level.designs() is the span
+    // level.getIndex() is the level number, level.designs() is the span
     parallelFor(level.designs(), [&](Design* design) {
         transform(design);
     });
@@ -1540,7 +1545,7 @@ for (auto level : levelize.levels() | std::views::reverse) {
 Index-based access is also available via `designsAtLevel()`:
 
 ```cpp
-for (uint32_t lvl = 0; lvl < levelize.numLevels(); ++lvl) {
+for (uint32_t lvl = 0; lvl < levelize.getNumLevels(); ++lvl) {
     auto designs = levelize.designsAtLevel(lvl);
     // ...
 }
