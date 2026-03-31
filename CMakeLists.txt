@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.15)
 
 project(stargate)
 
+# On macOS, require LLVM Clang (not AppleClang)
+if(APPLE)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        message(FATAL_ERROR
+            "AppleClang is not supported. Please use LLVM Clang.\n"
+            "Run install_build_tools.sh first, then use build.sh."
+        )
+    endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 

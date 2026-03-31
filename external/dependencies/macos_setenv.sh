@@ -1,0 +1,2 @@
+export LLVM_PREFIX=/opt/homebrew/opt/llvm@21
+export CMAKE_ARGS="'-DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@21/bin/clang' '-DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@21/bin/clang++' '-DCMAKE_CXX_FLAGS=-stdlib=libc++' '-DCMAKE_OSX_SYSROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk' '-DCMAKE_EXE_LINKER_FLAGS=-L/opt/homebrew/opt/llvm@21/lib/c++ -Wl,-rpath,/opt/homebrew/opt/llvm@21/lib/c++' '-DCMAKE_SHARED_LINKER_FLAGS=-L/opt/homebrew/opt/llvm@21/lib/c++ -Wl,-rpath,/opt/homebrew/opt/llvm@21/lib/c++'"
