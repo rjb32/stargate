@@ -16,12 +16,15 @@ public:
     using Tasks = std::vector<FlowTask*>;
     using TaskNameMap = std::unordered_map<std::string_view, FlowTask*>;
 
-    static FlowSection* create(Flow* parent, const std::string& name);
-
     Flow* getParent() const { return _parent; }
+
     const std::string& getName() const { return _name; }
+
     const Tasks& tasks() const { return _tasks; }
+
     FlowTask* getTask(std::string_view name) const;
+
+    static FlowSection* create(Flow* parent, const std::string& name);
 
 private:
     friend class FlowTask;

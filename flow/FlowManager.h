@@ -21,9 +21,11 @@ public:
     void init();
 
     const Flows& flows() const { return _flows; }
+
     Flow* getFlow(std::string_view name) const;
 
     void setOutputDir(const std::string& outputDir);
+
     const std::string& getOutputDir() const { return _outputDir; }
 
 private:

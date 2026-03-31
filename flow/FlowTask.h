@@ -14,14 +14,19 @@ public:
     friend FlowSection;
 
     virtual ~FlowTask();
+
     virtual std::string_view getName() const = 0;
+
     virtual void execute() = 0;
 
     FlowSection* getParent() const { return _parent; }
+
     size_t getIndex() const { return _index; }
+
     TaskStatus::Status getStatus() const;
 
     void getOutputDir(std::string& result) const;
+
     void getStatusFilePath(std::string& result) const;
 
 protected:

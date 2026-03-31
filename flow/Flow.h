@@ -16,9 +16,11 @@ public:
     using SectionNameMap = std::unordered_map<std::string_view, FlowSection*>;
 
     virtual ~Flow();
+
     virtual std::string_view getName() const = 0;
 
     const Sections& sections() const { return _sections; }
+
     FlowSection* getSection(std::string_view name) const;
     FlowSection* getBuildSection() const;
     FlowSection* getRunSection() const;
