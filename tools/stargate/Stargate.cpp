@@ -115,6 +115,17 @@ int main(int argc, char** argv) {
             return EXIT_SUCCESS;
         }
 
+        // Check if a command that needs the project config is requested
+        const bool hasBuild = argParser.is_subcommand_used("build");
+        const bool hasRun = argParser.is_subcommand_used("run");
+        const bool hasTask = !taskName.empty();
+        const bool hasTaskRange = !startTaskName.empty() || !endTaskName.empty();
+
+        if (!hasBuild && !hasRun && !hasTask && !hasTaskRange) {
+            std::cout << argParser << std::endl;
+            return EXIT_SUCCESS;
+        }
+
         // Setup project config for commands that need it
         if (!configFilePath.empty()) {
             projectConfig.setConfigPath(configFilePath);
@@ -123,37 +134,33 @@ int main(int argc, char** argv) {
         projectConfig.readConfig();
 
         // Handle build subcommand
-        if (argParser.is_subcommand_used("build")) {
+        if (hasBuild) {
             stargate.runSection(&projectConfig, targetName, "build");
             return EXIT_SUCCESS;
         }
 
         // Handle run subcommand
-        if (argParser.is_subcommand_used("run")) {
+        if (hasRun) {
             stargate.runSection(&projectConfig, targetName, "run");
             return EXIT_SUCCESS;
         }
 
         // Handle task execution options
-        if (!taskName.empty()) {
-            stargate.executeTask(&projectConfig, targetName, taskName);
+        if (hasTask) {
+            stargate.executeTask(
+                &projectConfig, targetName, taskName);
             return EXIT_SUCCESS;
         }
 
-        if (!startTaskName.empty() || !endTaskName.empty()) {
-            if (startTaskName.empty() || endTaskName.empty()) {
-                spdlog::error("-start_task and -end_task must be used together");
-                return EXIT_FAILURE;
-            }
-            stargate.executeTaskRange(&projectConfig,
-                                       targetName,
-                                       startTaskName,
-                                       endTaskName);
-            return EXIT_SUCCESS;
+        if (startTaskName.empty() || endTaskName.empty()) {
+            spdlog::error(
+                "-start_task and -end_task must be used together");
+            return EXIT_FAILURE;
         }
-
-        // Default: print help
-        std::cout << argParser << std::endl;
+        stargate.executeTaskRange(&projectConfig,
+                                   targetName,
+                                   startTaskName,
+                                   endTaskName);
 
     } catch (const FatalException& e) {
         spdlog::error("{}", e.what());

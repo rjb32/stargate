@@ -78,5 +78,5 @@ IMPORTANT: read CODING_STYLE.md before starting any work.
 - Never `using namespace` in headers; `using namespace std` OK in .cpp
 - Prefer `enum class`; trailing comma on last value
 - All exceptions must derive from `TuringException`
-- Use const extensively; prefer exceptions over error codes
+- Use const extensively, including for local variables; prefer exceptions over error codes
 - Don't return STL containers; pass by reference instead
