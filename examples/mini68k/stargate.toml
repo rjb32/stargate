@@ -4,3 +4,4 @@ testbench = ["testbench/*.v"]
 
 [targets]
 filesets = ["rtl", "testbench"]
+flow = "vivado"
