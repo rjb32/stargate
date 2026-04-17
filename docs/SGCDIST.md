@@ -1,48 +1,48 @@
-# sgcdistrib
+# sgcdist
 
 ## Overview
 
-sgcdistrib is a local task execution agent for the stargate build system.
+sgcdist is a local task execution agent for the stargate build system.
 It runs as a daemon on any machine reachable via SSH in a cluster and accepts
 task submissions through a JSON API over a Unix domain socket.
 
 Stargate dispatches build tasks (shell commands) to remote machines by
-connecting to the sgcdistrib instance running on each machine. sgcdistrib
+connecting to the sgcdist instance running on each machine. sgcdist
 owns the lifecycle of every process it spawns: it tracks them, logs their
 output, and ensures no orphans survive when it shuts down.
 
 
 ## Subcommands
 
-### sgcdistrib start
+### sgcdist start
 
 Start the daemon in the background on the current machine.
 
 ```
-sgcdistrib start [-socket <path>] [-log_dir <path>] [-max_tasks <n>]
+sgcdist start [-socket <path>] [-log_dir <path>] [-max_tasks <n>]
 ```
 
 - `-socket`    : path to the Unix domain socket
-  (default: `$HOME/.sgcdistrib/sgcdistrib.sock`)
+  (default: `$HOME/.sgcdist/sgcdist.sock`)
 - `-log_dir`   : base directory for task logs
-  (default: `$HOME/.sgcdistrib/sgcdistrib.out`)
+  (default: `$HOME/.sgcdist/sgcdist.out`)
 - `-max_tasks` : maximum number of concurrent tasks (default: 4)
 
 Behavior:
-- Creates `$HOME/.sgcdistrib/` if it does not exist.
-- Writes a PID file at `$HOME/.sgcdistrib/sgcdistrib.pid`.
+- Creates `$HOME/.sgcdist/` if it does not exist.
+- Writes a PID file at `$HOME/.sgcdist/sgcdist.pid`.
 - Creates the Unix socket with permissions `0700` and begins listening
   for API requests. Only the owning user can connect.
 - Refuses to start if another instance is already running (checks PID file
   and validates the process is alive).
-- Logs daemon-level messages to `$HOME/.sgcdistrib/sgcdistrib.log`.
+- Logs daemon-level messages to `$HOME/.sgcdist/sgcdist.log`.
 
-### sgcdistrib stop
+### sgcdist stop
 
 Stop the running daemon gracefully.
 
 ```
-sgcdistrib stop [-socket <path>]
+sgcdist stop [-socket <path>]
 ```
 
 Behavior:
@@ -55,12 +55,12 @@ Behavior:
 If the socket is unreachable, falls back to reading the PID file and
 sending SIGTERM directly to the daemon process.
 
-### sgcdistrib run
+### sgcdist run
 
 Submit a task from the command line without writing JSON by hand.
 
 ```
-sgcdistrib run [-socket <path>] [-name <name>] [-env KEY=VAL]...
+sgcdist run [-socket <path>] [-name <name>] [-env KEY=VAL]...
                [-working_dir <path>] "<command>"
 ```
 
@@ -73,12 +73,12 @@ Behavior:
 - Prints the assigned task ID and exits.
 - Exit code 0 on successful submission, 1 on error.
 
-### sgcdistrib status
+### sgcdist status
 
 Query the status of tasks.
 
 ```
-sgcdistrib status [-socket <path>] [-task <id>] [-all]
+sgcdist status [-socket <path>] [-task <id>] [-all]
 ```
 
 - No flags: show summary of running and queued tasks.
@@ -272,7 +272,7 @@ fork). This ensures that:
 ### Orphan prevention
 
 - The daemon sets itself as a subreaper (`prctl(PR_SET_CHILD_SUBREAPER)`
-  on Linux) so that grandchild processes are reparented to sgcdistrib
+  on Linux) so that grandchild processes are reparented to sgcdist
   rather than to init/PID 1.
 - On macOS, where subreaper is not available, the daemon relies on process
   group signaling for cleanup.
@@ -303,12 +303,12 @@ starts it.
 ## Task logging
 
 All task output is logged under the log directory (configurable via
-`-log_dir`, default `$HOME/.sgcdistrib/sgcdistrib.out`).
+`-log_dir`, default `$HOME/.sgcdist/sgcdist.out`).
 
 ### Directory structure
 
 ```
-sgcdistrib.out/
+sgcdist.out/
     1/
         command.sh
         stdout.log
@@ -373,21 +373,21 @@ existing task directory ID plus one.
 ## Integration with stargate
 
 Stargate dispatches tasks to remote machines by SSH-ing into them and
-communicating with the local sgcdistrib daemon over its Unix socket.
+communicating with the local sgcdist daemon over its Unix socket.
 
 Typical workflow:
-1. Stargate ensures sgcdistrib is running on the target machine
-   (`ssh host sgcdistrib start`).
+1. Stargate ensures sgcdist is running on the target machine
+   (`ssh host sgcdist start`).
 2. Stargate submits a task
-   (`ssh host sgcdistrib run "make synth"`).
+   (`ssh host sgcdist run "make synth"`).
 3. Stargate polls task status
-   (`ssh host sgcdistrib status -task 7`).
-4. Stargate retrieves logs from `sgcdistrib.out/<task_id>/` on the
+   (`ssh host sgcdist status -task 7`).
+4. Stargate retrieves logs from `sgcdist.out/<task_id>/` on the
    remote machine when needed.
 
 The CLI subcommands (`run`, `status`) serve as the SSH-friendly interface
 to the JSON API. Stargate does not need to construct raw JSON; it invokes
-sgcdistrib subcommands over SSH.
+sgcdist subcommands over SSH.
 
 
 ## Security
@@ -396,7 +396,7 @@ The Unix domain socket is the sole entry point to the daemon. Access
 control is enforced via filesystem permissions:
 - The socket file is created with mode `0700`, restricting access to the
   owning user.
-- The `$HOME/.sgcdistrib/` directory is created with mode `0700`.
+- The `$HOME/.sgcdist/` directory is created with mode `0700`.
 - Any user who can connect to the socket can submit arbitrary shell
   commands that run as the daemon's user. There is no additional
   authentication layer; filesystem permissions are the access control
@@ -407,22 +407,22 @@ control is enforced via filesystem permissions:
 
 | Parameter     | Flag           | Default                                |
 |---------------|----------------|----------------------------------------|
-| Socket path   | `-socket`      | `$HOME/.sgcdistrib/sgcdistrib.sock`    |
-| Log directory | `-log_dir`     | `$HOME/.sgcdistrib/sgcdistrib.out`     |
+| Socket path   | `-socket`      | `$HOME/.sgcdist/sgcdist.sock`    |
+| Log directory | `-log_dir`     | `$HOME/.sgcdist/sgcdist.out`     |
 | Max tasks     | `-max_tasks`   | 4                                      |
-| PID file      | (not settable) | `$HOME/.sgcdistrib/sgcdistrib.pid`     |
-| Daemon log    | (not settable) | `$HOME/.sgcdistrib/sgcdistrib.log`     |
+| PID file      | (not settable) | `$HOME/.sgcdist/sgcdist.pid`     |
+| Daemon log    | (not settable) | `$HOME/.sgcdist/sgcdist.log`     |
 | Grace period  | (not settable) | 5 seconds                              |
 
 
 ## Code architecture
 
-sgcdistrib is a standalone C++ executable in `tools/sgcdistrib/`, linked
+sgcdist is a standalone C++ executable in `tools/sgcdist/`, linked
 against `sgc_common_s` for shared utilities (FileUtils, exceptions).
 
 ```
-tools/sgcdistrib/
-    SgcDistrib.cpp        -- main(), argument parsing, subcommand dispatch
+tools/sgcdist/
+    SgcDist.cpp        -- main(), argument parsing, subcommand dispatch
     Daemon.h / Daemon.cpp -- daemon lifecycle, socket listener, event loop
     TaskRunner.h / .cpp   -- fork/exec, process group management, reaping
     TaskLog.h / .cpp      -- log directory creation, stdout/stderr capture
