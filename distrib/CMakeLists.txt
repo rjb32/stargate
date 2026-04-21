@@ -4,6 +4,7 @@ set(distrib_sources
     DistribConfig.cpp
     DistribFlow.cpp
     DistribFlowManager.cpp
+    AWSCLI.cpp
     AWSEC2Config.cpp
     AWSEC2Flow.cpp
     SGCDist.cpp)

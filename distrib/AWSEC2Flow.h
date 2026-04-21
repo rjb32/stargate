@@ -6,6 +6,7 @@
 
 namespace stargate {
 
+class AWSCLI;
 class AWSEC2Config;
 class DistribFlowManager;
 
@@ -22,14 +23,33 @@ public:
 private:
     AWSEC2Flow();
 
-    std::string ensureVPC(const AWSEC2Config* config, bool dryMode);
-    std::string ensureSubnet(const AWSEC2Config* config,
+    void logConfig(const AWSEC2Config* config);
+    void logDryActions(const AWSEC2Config* config);
+
+    void provision(const AWSEC2Config* config);
+
+    void ensureVPC(AWSCLI& cli,
+                   const AWSEC2Config* config,
+                   std::string& vpcId);
+    void findFirstAvailabilityZone(AWSCLI& cli, std::string& azName);
+    void ensureSubnet(AWSCLI& cli,
+                      const AWSEC2Config* config,
+                      const std::string& vpcId,
+                      std::string& subnetId);
+    void ensureInternetGateway(AWSCLI& cli,
+                               const std::string& vpcId,
+                               std::string& igwId);
+    void ensurePublicRouteTable(AWSCLI& cli,
+                                const std::string& vpcId,
+                                const std::string& igwId,
+                                const std::string& subnetId,
+                                std::string& routeTableId);
+    void ensureSecurityGroup(AWSCLI& cli,
                              const std::string& vpcId,
-                             bool dryMode);
-    std::string ensureSecurityGroup(const AWSEC2Config* config,
-                                    const std::string& vpcId,
-                                    bool dryMode);
-    std::string resolveAMI(const AWSEC2Config* config, bool dryMode);
+                             std::string& securityGroupId);
+    void resolveAMI(AWSCLI& cli,
+                    const AWSEC2Config* config,
+                    std::string& amiId);
 
     void writeAWSInfra(const AWSEC2Config* config,
                        const std::string& path,
