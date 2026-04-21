@@ -12,6 +12,7 @@ class FlowManager;
 class Flow;
 class FlowSection;
 class FlowTask;
+class DistribFlowManager;
 
 class Stargate {
 public:
@@ -35,9 +36,12 @@ public:
                           const std::string& startTaskName,
                           const std::string& endTaskName);
 
+    void infraInit(const ProjectConfig* projectConfig);
+
 private:
     const StargateConfig& _config;
     std::unique_ptr<FlowManager> _flowManager;
+    std::unique_ptr<DistribFlowManager> _distribFlowManager;
 
     void createOutputDir();
     void writeTargets(const ProjectConfig* projConfig);

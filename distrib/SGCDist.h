@@ -1,8 +1,12 @@
 #pragma once
 
+#include <memory>
 #include <string>
 
 namespace stargate {
+
+class DistribConfig;
+class DistribFlowManager;
 
 class SGCDist {
 public:
@@ -30,6 +34,10 @@ public:
 private:
     std::string _commandScriptPath;
     std::string _distribConfigPath;
+    std::unique_ptr<DistribFlowManager> _flowManager;
+
+    int execLocal();
+    int execFlow();
 };
 
 }

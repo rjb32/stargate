@@ -9,6 +9,8 @@
 #include "ProjectTarget.h"
 #include "FileSet.h"
 
+#include "DistribConfig.h"
+
 #include "FileUtils.h"
 #include "Panic.h"
 
@@ -104,10 +106,19 @@ void ProjectConfig::parseConfig(const toml::table& config) {
             if (const toml::table* targets = value.as_table()) {
                 parseTargets(*targets);
             }
+        } else if (key == "distrib") {
+            if (const toml::table* distrib = value.as_table()) {
+                parseDistrib(*distrib);
+            }
         } else {
             panic("Unknown section in core config: {}", key.str());
         }
     }
+}
+
+void ProjectConfig::parseDistrib(const toml::table& distrib) {
+    _distribConfig = std::make_unique<DistribConfig>();
+    _distribConfig->loadFromTable(distrib);
 }
 
 void ProjectConfig::parseFilesets(const toml::table& filesets) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <map>
 #include <ranges>
@@ -13,6 +14,7 @@ class table;
 
 namespace stargate {
 
+class DistribConfig;
 class FileSet;
 class ProjectTarget;
 
@@ -40,11 +42,16 @@ public:
 
     void readConfig();
 
+    bool hasDistrib() const { return _distribConfig != nullptr; }
+
+    const DistribConfig* getDistribConfig() const { return _distribConfig.get(); }
+
 private:
     bool _verbose {false};
     std::string _configPath;
     std::map<std::string, FileSet*> _filesets;
     std::map<std::string, ProjectTarget*> _targets;
+    std::unique_ptr<DistribConfig> _distribConfig;
 
     void addTarget(ProjectTarget* target);
     void parseConfig(const toml::table& config);
@@ -53,6 +60,7 @@ private:
     void parseTargetProperty(ProjectTarget* target,
                              std::string_view key,
                              const toml::node& value);
+    void parseDistrib(const toml::table& distrib);
     void dumpConfig() const;
 };
 

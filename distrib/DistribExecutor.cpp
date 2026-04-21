@@ -1,6 +1,6 @@
 #include "DistribExecutor.h"
 
-#include <fstream>
+#include "DistribConfig.h"
 
 #include "Command.h"
 #include "CommandExecutor.h"
@@ -25,14 +25,6 @@ std::string joinPath(const std::string& dir, const std::string& name) {
     return dir + "/" + name;
 }
 
-void writeEmptyConfig(const std::string& path) {
-    std::ofstream config(path);
-    if (!config.is_open()) {
-        panic("Failed to open distrib config file: {}", path);
-    }
-    config.close();
-}
-
 }
 
 DistribExecutor::DistribExecutor() {
@@ -45,6 +37,9 @@ int DistribExecutor::exec(const Command* command) {
     if (_currentDir.empty()) {
         panic("DistribExecutor requires a current directory");
     }
+    if (!_distribConfig) {
+        panic("DistribExecutor requires a distrib config");
+    }
 
     const std::string commandScriptPath = joinPath(_currentDir, COMMAND_SCRIPT_NAME);
     const std::string distribScriptPath = joinPath(_currentDir, DISTRIB_SCRIPT_NAME);
@@ -53,7 +48,7 @@ int DistribExecutor::exec(const Command* command) {
     CommandExecutor executor;
     executor.writeScript(command, commandScriptPath);
 
-    writeEmptyConfig(distribConfigPath);
+    _distribConfig->save(distribConfigPath);
 
     Command distribCommand;
     distribCommand.setName(SGCDIST_BINARY_NAME);

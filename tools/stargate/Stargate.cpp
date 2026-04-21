@@ -91,6 +91,14 @@ int main(int argc, char** argv) {
     runParser.add_description("Execute the run section of the target's flow");
     argParser.add_subparser(runParser);
 
+    // Add infra subcommand
+    ArgumentParser infraParser("infra");
+    infraParser.add_description("Manage the distrib flow's infrastructure");
+    infraParser.add_argument("action")
+        .metavar("action")
+        .help("Infra action to perform (init)");
+    argParser.add_subparser(infraParser);
+
     try {
         argParser.parse_args(argc, argv);
     } catch (const std::runtime_error& err) {
@@ -118,10 +126,11 @@ int main(int argc, char** argv) {
         // Check if a command that needs the project config is requested
         const bool hasBuild = argParser.is_subcommand_used("build");
         const bool hasRun = argParser.is_subcommand_used("run");
+        const bool hasInfra = argParser.is_subcommand_used("infra");
         const bool hasTask = !taskName.empty();
         const bool hasTaskRange = !startTaskName.empty() || !endTaskName.empty();
 
-        if (!hasBuild && !hasRun && !hasTask && !hasTaskRange) {
+        if (!hasBuild && !hasRun && !hasInfra && !hasTask && !hasTaskRange) {
             std::cout << argParser << std::endl;
             return EXIT_SUCCESS;
         }
@@ -143,6 +152,17 @@ int main(int argc, char** argv) {
         if (hasRun) {
             stargate.runSection(&projectConfig, targetName, "run");
             return EXIT_SUCCESS;
+        }
+
+        // Handle infra subcommand
+        if (hasInfra) {
+            const std::string action = infraParser.get<std::string>("action");
+            if (action == "init") {
+                stargate.infraInit(&projectConfig);
+                return EXIT_SUCCESS;
+            }
+            spdlog::error("Unknown infra action: {}", action);
+            return EXIT_FAILURE;
         }
 
         // Handle task execution options

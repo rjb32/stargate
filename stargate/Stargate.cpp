@@ -15,6 +15,10 @@
 #include "FlowSection.h"
 #include "FlowTask.h"
 
+#include "DistribConfig.h"
+#include "DistribFlow.h"
+#include "DistribFlowManager.h"
+
 #include "FileUtils.h"
 #include "FileSetCollector.h"
 #include "Panic.h"
@@ -25,6 +29,7 @@ Stargate::Stargate(const StargateConfig& config)
     : _config(config)
 {
     _flowManager = std::make_unique<FlowManager>();
+    _distribFlowManager = std::make_unique<DistribFlowManager>();
 }
 
 Stargate::~Stargate() {
@@ -32,6 +37,26 @@ Stargate::~Stargate() {
 
 void Stargate::init() {
     _flowManager->init();
+    _distribFlowManager->init();
+}
+
+void Stargate::infraInit(const ProjectConfig* projectConfig) {
+    if (!projectConfig->hasDistrib()) {
+        panic("No [distrib] section found in the project config");
+    }
+
+    const DistribConfig* distribConfig = projectConfig->getDistribConfig();
+    const std::string& flowName = distribConfig->getFlowName();
+    if (flowName.empty()) {
+        panic("The [distrib] section does not specify a 'flow'");
+    }
+
+    DistribFlow* flow = _distribFlowManager->getFlow(flowName);
+    if (!flow) {
+        panic("Unknown distrib flow '{}'", flowName);
+    }
+
+    flow->init(distribConfig);
 }
 
 void Stargate::runFlow(const ProjectConfig* projectConfig,
