@@ -1,0 +1,8 @@
+[filesets]
+rtl = ["*.v"]
+
+[targets]
+filesets = ["rtl"]
+
+[distrib]
+flow = "awsec2"

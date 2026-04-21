@@ -14,6 +14,7 @@ endmacro()
 
 # Register each regress test directory here
 add_subdirectory(sgcdist_basic)
+add_subdirectory(awsec2_infra_dry)
 
 set(_SGCDIST_BIN_DIR ${CMAKE_BINARY_DIR}/tools/sgcdist)
 set(_STARGATE_BIN_DIR ${CMAKE_BINARY_DIR}/tools/stargate)

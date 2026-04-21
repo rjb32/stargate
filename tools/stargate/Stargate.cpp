@@ -97,6 +97,11 @@ int main(int argc, char** argv) {
     infraParser.add_argument("action")
         .metavar("action")
         .help("Infra action to perform (init)");
+    infraParser.add_argument("--dry")
+        .nargs(0)
+        .default_value(false)
+        .implicit_value(true)
+        .help("Validate config and log planned actions without provisioning");
     argParser.add_subparser(infraParser);
 
     try {
@@ -157,8 +162,9 @@ int main(int argc, char** argv) {
         // Handle infra subcommand
         if (hasInfra) {
             const std::string action = infraParser.get<std::string>("action");
+            const bool dryMode = infraParser.get<bool>("--dry");
             if (action == "init") {
-                stargate.infraInit(&projectConfig);
+                stargate.infraInit(&projectConfig, dryMode);
                 return EXIT_SUCCESS;
             }
             spdlog::error("Unknown infra action: {}", action);

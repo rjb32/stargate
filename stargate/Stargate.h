@@ -36,7 +36,7 @@ public:
                           const std::string& startTaskName,
                           const std::string& endTaskName);
 
-    void infraInit(const ProjectConfig* projectConfig);
+    void infraInit(const ProjectConfig* projectConfig, bool dryMode);
 
 private:
     const StargateConfig& _config;

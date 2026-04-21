@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -23,6 +24,9 @@ public:
 
     DistribFlow* getFlow(std::string_view name) const;
 
+    void setDistribDir(const std::string& distribDir) { _distribDir = distribDir; }
+    const std::string& getDistribDir() const { return _distribDir; }
+
 private:
     friend DistribFlow;
     friend AWSEC2Flow;
@@ -31,6 +35,7 @@ private:
 
     Flows _flows;
     FlowNameMap _flowNameMap;
+    std::string _distribDir;
 };
 
 }

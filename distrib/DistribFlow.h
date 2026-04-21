@@ -16,7 +16,7 @@ public:
 
     virtual std::string_view getName() const = 0;
 
-    virtual void init(const DistribConfig* config) = 0;
+    virtual void init(const DistribConfig* config, bool dryMode) = 0;
 
     virtual int runCommand(const std::string& commandScriptPath) = 0;
 

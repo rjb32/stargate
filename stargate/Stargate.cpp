@@ -40,7 +40,7 @@ void Stargate::init() {
     _distribFlowManager->init();
 }
 
-void Stargate::infraInit(const ProjectConfig* projectConfig) {
+void Stargate::infraInit(const ProjectConfig* projectConfig, bool dryMode) {
     if (!projectConfig->hasDistrib()) {
         panic("No [distrib] section found in the project config");
     }
@@ -56,7 +56,21 @@ void Stargate::infraInit(const ProjectConfig* projectConfig) {
         panic("Unknown distrib flow '{}'", flowName);
     }
 
-    flow->init(distribConfig);
+    if (!dryMode) {
+        const auto& stargateDir = _config.getStargateDir();
+        if (!FileUtils::exists(stargateDir)) {
+            FileUtils::createDirectory(stargateDir);
+        }
+
+        const std::string distribDir = stargateDir + "/distrib";
+        if (!FileUtils::exists(distribDir)) {
+            FileUtils::createDirectory(distribDir);
+        }
+
+        _distribFlowManager->setDistribDir(distribDir);
+    }
+
+    flow->init(distribConfig, dryMode);
 }
 
 void Stargate::runFlow(const ProjectConfig* projectConfig,

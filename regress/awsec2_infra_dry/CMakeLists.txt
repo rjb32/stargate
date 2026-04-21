@@ -1,0 +1,1 @@
+regress_test(awsec2_infra_dry)
