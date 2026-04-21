@@ -6,7 +6,8 @@ if [[ "$(uname)" == "Darwin" && -f "$MACOS_SETENV" ]]; then
 fi
 
 STARGATE_PATH=$(pwd)/build/tools/stargate/
+SGCDIST_PATH=$(pwd)/build/tools/sgcdist/
 
-export PATH=$STARGATE_PATH:$PATH
+export PATH=$STARGATE_PATH:$SGCDIST_PATH:$PATH
 
 alias sgc=stargate

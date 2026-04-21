@@ -1,5 +1,7 @@
 
 set(common_sources
+    Command.cpp
+    CommandExecutor.cpp
     FileSet.cpp
     FileSetCollector.cpp
     FileUtils.cpp)
