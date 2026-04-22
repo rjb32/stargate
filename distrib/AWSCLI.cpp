@@ -49,6 +49,10 @@ void AWSCLI::run(const Args& args, std::string& output) const {
         cmd += " --region ";
         cmd += shellQuote(_region);
     }
+    if (!_profile.empty()) {
+        cmd += " --profile ";
+        cmd += shellQuote(_profile);
+    }
     for (const auto& arg : args) {
         cmd += " ";
         cmd += shellQuote(arg);

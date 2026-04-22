@@ -6,3 +6,6 @@ filesets = ["rtl"]
 
 [distrib]
 flow = "awsec2"
+
+[distrib.awsec2]
+profile = "remyfpga"

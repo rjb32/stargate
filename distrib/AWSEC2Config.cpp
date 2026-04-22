@@ -11,6 +11,9 @@ using namespace stargate;
 namespace {
 
 constexpr const char* REGION_KEY = "region";
+constexpr const char* PROFILE_KEY = "profile";
+constexpr const char* KEY_PAIR_KEY = "key_pair";
+constexpr const char* SSH_USER_KEY = "ssh_user";
 constexpr const char* VPC_KEY = "vpc";
 constexpr const char* PUBLIC_SUBNET_KEY = "public_subnet";
 constexpr const char* BUILD_INSTANCE_TYPE_KEY = "build_instance_type";
@@ -19,6 +22,8 @@ constexpr const char* AMI_ID_KEY = "ami_id";
 constexpr const char* AUTOSTOP_KEY = "autostop";
 
 constexpr const char* DEFAULT_REGION = "us-west-2";
+constexpr const char* DEFAULT_KEY_PAIR_NAME = "stargate-key";
+constexpr const char* DEFAULT_SSH_USER = "ubuntu";
 constexpr const char* DEFAULT_VPC_NAME = "stargate-vpc";
 constexpr const char* DEFAULT_PUBLIC_SUBNET_NAME = "stargate-public";
 constexpr const char* DEFAULT_BUILD_INSTANCE_TYPE = "z1d.2xlarge";
@@ -30,6 +35,8 @@ constexpr const char* SECTION_NAME = "awsec2";
 
 AWSEC2Config::AWSEC2Config()
     : _region(DEFAULT_REGION),
+    _keyPairName(DEFAULT_KEY_PAIR_NAME),
+    _sshUser(DEFAULT_SSH_USER),
     _vpcName(DEFAULT_VPC_NAME),
     _publicSubnetName(DEFAULT_PUBLIC_SUBNET_NAME),
     _buildInstanceType(DEFAULT_BUILD_INSTANCE_TYPE),
@@ -45,6 +52,18 @@ void AWSEC2Config::loadFromTable(const toml::table& table) {
         if (key == REGION_KEY) {
             if (const auto& str = value.value<std::string>()) {
                 _region = *str;
+            }
+        } else if (key == PROFILE_KEY) {
+            if (const auto& str = value.value<std::string>()) {
+                _profile = *str;
+            }
+        } else if (key == KEY_PAIR_KEY) {
+            if (const auto& str = value.value<std::string>()) {
+                _keyPairName = *str;
+            }
+        } else if (key == SSH_USER_KEY) {
+            if (const auto& str = value.value<std::string>()) {
+                _sshUser = *str;
             }
         } else if (key == VPC_KEY) {
             if (const auto& str = value.value<std::string>()) {
@@ -79,6 +98,9 @@ void AWSEC2Config::loadFromTable(const toml::table& table) {
 void AWSEC2Config::save(std::ostream& out) const {
     out << "[" << SECTION_NAME << "]\n";
     out << REGION_KEY << " = \"" << _region << "\"\n";
+    out << PROFILE_KEY << " = \"" << _profile << "\"\n";
+    out << KEY_PAIR_KEY << " = \"" << _keyPairName << "\"\n";
+    out << SSH_USER_KEY << " = \"" << _sshUser << "\"\n";
     out << VPC_KEY << " = \"" << _vpcName << "\"\n";
     out << PUBLIC_SUBNET_KEY << " = \"" << _publicSubnetName << "\"\n";
     out << BUILD_INSTANCE_TYPE_KEY << " = \"" << _buildInstanceType << "\"\n";

@@ -96,7 +96,7 @@ int main(int argc, char** argv) {
     infraParser.add_description("Manage the distrib flow's infrastructure");
     infraParser.add_argument("action")
         .metavar("action")
-        .help("Infra action to perform (init)");
+        .help("Infra action to perform (init, ls, start, stop, destroy)");
     infraParser.add_argument("--dry")
         .nargs(0)
         .default_value(false)
@@ -165,6 +165,22 @@ int main(int argc, char** argv) {
             const bool dryMode = infraParser.get<bool>("--dry");
             if (action == "init") {
                 stargate.infraInit(&projectConfig, dryMode);
+                return EXIT_SUCCESS;
+            }
+            if (action == "ls") {
+                stargate.infraLs(&projectConfig);
+                return EXIT_SUCCESS;
+            }
+            if (action == "start") {
+                stargate.infraStart(&projectConfig);
+                return EXIT_SUCCESS;
+            }
+            if (action == "stop") {
+                stargate.infraStop(&projectConfig);
+                return EXIT_SUCCESS;
+            }
+            if (action == "destroy") {
+                stargate.infraDestroy(&projectConfig);
                 return EXIT_SUCCESS;
             }
             spdlog::error("Unknown infra action: {}", action);

@@ -13,6 +13,8 @@ class Flow;
 class FlowSection;
 class FlowTask;
 class DistribFlowManager;
+class DistribFlow;
+class DistribConfig;
 
 class Stargate {
 public:
@@ -37,6 +39,10 @@ public:
                           const std::string& endTaskName);
 
     void infraInit(const ProjectConfig* projectConfig, bool dryMode);
+    void infraLs(const ProjectConfig* projectConfig);
+    void infraStart(const ProjectConfig* projectConfig);
+    void infraStop(const ProjectConfig* projectConfig);
+    void infraDestroy(const ProjectConfig* projectConfig);
 
 private:
     const StargateConfig& _config;
@@ -50,6 +56,9 @@ private:
                              const std::string& fileListPath);
 
     Flow* getTargetFlow(const ProjectTarget* target);
+    void getDistribFlow(const ProjectConfig* projectConfig,
+                        DistribFlow*& flow,
+                        const DistribConfig*& distribConfig);
     void executeSection(FlowSection* section);
     void executeSection(FlowSection* section, size_t startIdx, size_t endIdx);
     bool checkSectionDependencies(Flow* flow, FlowSection* section);

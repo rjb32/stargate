@@ -24,6 +24,9 @@ fi
 expected_lines=(
     "DRY RUN"
     "region              = us-west-2"
+    "profile             = remyfpga"
+    "key_pair            = stargate-key"
+    "ssh_user            = ubuntu"
     "vpc                 = stargate-vpc"
     "public_subnet       = stargate-public"
     "build_instance_type = z1d.2xlarge"
@@ -32,8 +35,11 @@ expected_lines=(
     "\[dry\] ensuring VPC 'stargate-vpc' exists in region us-west-2"
     "\[dry\] ensuring public subnet 'stargate-public' in VPC"
     "\[dry\] ensuring security group"
+    "\[dry\] ensuring key pair 'stargate-key'"
     "\[dry\] resolving latest Vivado AMI from Xilinx"
     "build instance name = stargate-build-"
+    "\[dry\] to ssh into the build instance, you will run:"
+    "ssh -i .*stargate-key\.pem ubuntu@<INSTANCE_PUBLIC_IP>"
     "dry run complete, skipping aws_infra.toml write"
 )
 

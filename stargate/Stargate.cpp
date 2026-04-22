@@ -73,6 +73,59 @@ void Stargate::infraInit(const ProjectConfig* projectConfig, bool dryMode) {
     flow->init(distribConfig, dryMode);
 }
 
+void Stargate::infraLs(const ProjectConfig* projectConfig) {
+    DistribFlow* flow = nullptr;
+    const DistribConfig* distribConfig = nullptr;
+    getDistribFlow(projectConfig, flow, distribConfig);
+    flow->ls(distribConfig);
+}
+
+void Stargate::infraStart(const ProjectConfig* projectConfig) {
+    DistribFlow* flow = nullptr;
+    const DistribConfig* distribConfig = nullptr;
+    getDistribFlow(projectConfig, flow, distribConfig);
+    flow->start(distribConfig);
+}
+
+void Stargate::infraStop(const ProjectConfig* projectConfig) {
+    DistribFlow* flow = nullptr;
+    const DistribConfig* distribConfig = nullptr;
+    getDistribFlow(projectConfig, flow, distribConfig);
+    flow->stop(distribConfig);
+}
+
+void Stargate::infraDestroy(const ProjectConfig* projectConfig) {
+    DistribFlow* flow = nullptr;
+    const DistribConfig* distribConfig = nullptr;
+    getDistribFlow(projectConfig, flow, distribConfig);
+    flow->destroy(distribConfig);
+}
+
+void Stargate::getDistribFlow(const ProjectConfig* projectConfig,
+                              DistribFlow*& flow,
+                              const DistribConfig*& distribConfig) {
+    if (!projectConfig->hasDistrib()) {
+        panic("No [distrib] section found in the project config");
+    }
+
+    distribConfig = projectConfig->getDistribConfig();
+    const std::string& flowName = distribConfig->getFlowName();
+    if (flowName.empty()) {
+        panic("The [distrib] section does not specify a 'flow'");
+    }
+
+    flow = _distribFlowManager->getFlow(flowName);
+    if (!flow) {
+        panic("Unknown distrib flow '{}'", flowName);
+    }
+
+    const auto& stargateDir = _config.getStargateDir();
+    const std::string distribDir = stargateDir + "/distrib";
+    if (FileUtils::exists(distribDir)) {
+        _distribFlowManager->setDistribDir(distribDir);
+    }
+}
+
 void Stargate::runFlow(const ProjectConfig* projectConfig,
                        const std::string& targetName) {
     createOutputDir();

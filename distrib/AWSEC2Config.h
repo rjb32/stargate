@@ -20,6 +20,9 @@ public:
     void save(std::ostream& out) const;
 
     const std::string& getRegion() const { return _region; }
+    const std::string& getProfile() const { return _profile; }
+    const std::string& getKeyPairName() const { return _keyPairName; }
+    const std::string& getSSHUser() const { return _sshUser; }
     const std::string& getVPCName() const { return _vpcName; }
     const std::string& getPublicSubnetName() const { return _publicSubnetName; }
     const std::string& getBuildInstanceType() const { return _buildInstanceType; }
@@ -29,6 +32,9 @@ public:
 
 private:
     std::string _region;
+    std::string _profile;
+    std::string _keyPairName;
+    std::string _sshUser;
     std::string _vpcName;
     std::string _publicSubnetName;
     std::string _buildInstanceType;
