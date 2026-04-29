@@ -9,6 +9,7 @@
 #include "StargateConfig.h"
 #include "ProjectConfig.h"
 
+#include "DistribFlow.h"
 #include "FatalException.h"
 #include "FileUtils.h"
 
@@ -96,12 +97,24 @@ int main(int argc, char** argv) {
     infraParser.add_description("Manage the distrib flow's infrastructure");
     infraParser.add_argument("action")
         .metavar("action")
-        .help("Infra action to perform (init, ls, start, stop, destroy)");
+        .help("Infra action to perform "
+              "(init, ls, start, stop, destroy, gui)");
+    infraParser.add_argument("subaction")
+        .metavar("subaction")
+        .nargs(argparse::nargs_pattern::optional)
+        .default_value(std::string(""))
+        .help("Sub-action for gui: start, stop. "
+              "If omitted, gui opens the DCV browser session.");
     infraParser.add_argument("--dry")
         .nargs(0)
         .default_value(false)
         .implicit_value(true)
         .help("Validate config and log planned actions without provisioning");
+    infraParser.add_argument("-y", "--yes")
+        .nargs(0)
+        .default_value(false)
+        .implicit_value(true)
+        .help("Assume yes to all infra confirmation prompts");
     argParser.add_subparser(infraParser);
 
     try {
@@ -162,7 +175,16 @@ int main(int argc, char** argv) {
         // Handle infra subcommand
         if (hasInfra) {
             const std::string action = infraParser.get<std::string>("action");
+            const std::string subaction =
+                infraParser.get<std::string>("subaction");
             const bool dryMode = infraParser.get<bool>("--dry");
+            const bool yesMode = infraParser.get<bool>("--yes");
+            setInfraYesMode(yesMode);
+            if (action != "gui" && !subaction.empty()) {
+                spdlog::error("Sub-action '{}' is only valid with 'gui'",
+                              subaction);
+                return EXIT_FAILURE;
+            }
             if (action == "init") {
                 stargate.infraInit(&projectConfig, dryMode);
                 return EXIT_SUCCESS;
@@ -181,6 +203,19 @@ int main(int argc, char** argv) {
             }
             if (action == "destroy") {
                 stargate.infraDestroy(&projectConfig);
+                return EXIT_SUCCESS;
+            }
+            if (action == "gui") {
+                GUIAction guiAction = GUIAction::OPEN;
+                if (subaction == "start") {
+                    guiAction = GUIAction::START;
+                } else if (subaction == "stop") {
+                    guiAction = GUIAction::STOP;
+                } else if (!subaction.empty()) {
+                    spdlog::error("Unknown gui sub-action: {}", subaction);
+                    return EXIT_FAILURE;
+                }
+                stargate.infraGui(&projectConfig, guiAction);
                 return EXIT_SUCCESS;
             }
             spdlog::error("Unknown infra action: {}", action);

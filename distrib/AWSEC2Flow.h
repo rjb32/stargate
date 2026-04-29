@@ -22,6 +22,7 @@ public:
     void start(const DistribConfig* config) override;
     void stop(const DistribConfig* config) override;
     void destroy(const DistribConfig* config) override;
+    void gui(const DistribConfig* config, GUIAction action) override;
 
     int runCommand(const std::string& commandScriptPath) override;
 
@@ -78,6 +79,31 @@ private:
     void createAndAttachIGW(AWSCLI& cli,
                             const std::string& vpcId,
                             std::string& igwId);
+
+    void waitForSSH(const std::string& pemPath,
+                    const std::string& user,
+                    const std::string& host,
+                    const std::string& knownHostsPath);
+    int runSSH(const std::string& pemPath,
+               const std::string& user,
+               const std::string& host,
+               const std::string& knownHostsPath,
+               const std::string& remoteCommand,
+               std::string& output);
+    int runSCP(const std::string& pemPath,
+               const std::string& user,
+               const std::string& host,
+               const std::string& knownHostsPath,
+               const std::string& localPath,
+               const std::string& remotePath);
+    void installDCV(const AWSEC2Config* config,
+                    const std::string& flowDir,
+                    const std::string& pemPath,
+                    const std::string& publicIP);
+    bool isDCVInstalled(const AWSEC2Config* config,
+                        const std::string& pemPath,
+                        const std::string& knownHostsPath,
+                        const std::string& publicIP);
     bool hasDefaultRoute(AWSCLI& cli,
                          const std::string& routeTableId);
     void addDefaultRoute(AWSCLI& cli,
@@ -89,6 +115,11 @@ private:
     void detectExistingInfra(AWSCLI& cli,
                              const AWSEC2Config* config,
                              std::vector<std::string>& found);
+
+    void collectProvisionPlan(AWSCLI& cli,
+                              const AWSEC2Config* config,
+                              const std::string& flowDir,
+                              std::vector<std::string>& toCreate);
 
     void ensureVPC(AWSCLI& cli,
                    const AWSEC2Config* config,
@@ -109,6 +140,29 @@ private:
     void ensureSecurityGroup(AWSCLI& cli,
                              const std::string& vpcId,
                              std::string& securityGroupId);
+    void detectPublicIP(std::string& ip);
+    void listSGIngressCIDRs(AWSCLI& cli,
+                            const std::string& sgId,
+                            const std::string& proto,
+                            int port,
+                            std::vector<std::string>& cidrs);
+    void ensureDCVIngress(AWSCLI& cli, const std::string& sgId);
+    void ensureDCVPassword(const std::string& flowDir, std::string& password);
+    void guiOpen(AWSCLI& cli,
+                 const AWSEC2Config* config,
+                 const std::string& vpcId,
+                 const std::string& publicIP,
+                 const std::string& flowDir,
+                 const std::string& pemPath,
+                 const std::string& knownHostsPath);
+    void guiStart(const AWSEC2Config* config,
+                  const std::string& publicIP,
+                  const std::string& pemPath,
+                  const std::string& knownHostsPath);
+    void guiStop(const AWSEC2Config* config,
+                 const std::string& publicIP,
+                 const std::string& pemPath,
+                 const std::string& knownHostsPath);
     void ensureKeyPair(AWSCLI& cli,
                        const AWSEC2Config* config,
                        const std::string& flowDir,

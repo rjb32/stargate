@@ -8,6 +8,15 @@ namespace stargate {
 class DistribFlowManager;
 class DistribConfig;
 
+enum class GUIAction {
+    OPEN,
+    START,
+    STOP,
+};
+
+void setInfraYesMode(bool yes);
+bool isInfraYesMode();
+
 class DistribFlow {
 public:
     friend DistribFlowManager;
@@ -21,6 +30,7 @@ public:
     virtual void start(const DistribConfig* config) = 0;
     virtual void stop(const DistribConfig* config) = 0;
     virtual void destroy(const DistribConfig* config) = 0;
+    virtual void gui(const DistribConfig* config, GUIAction action) = 0;
 
     virtual int runCommand(const std::string& commandScriptPath) = 0;
 

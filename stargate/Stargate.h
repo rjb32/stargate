@@ -15,6 +15,7 @@ class FlowTask;
 class DistribFlowManager;
 class DistribFlow;
 class DistribConfig;
+enum class GUIAction;
 
 class Stargate {
 public:
@@ -43,6 +44,7 @@ public:
     void infraStart(const ProjectConfig* projectConfig);
     void infraStop(const ProjectConfig* projectConfig);
     void infraDestroy(const ProjectConfig* projectConfig);
+    void infraGui(const ProjectConfig* projectConfig, GUIAction action);
 
 private:
     const StargateConfig& _config;

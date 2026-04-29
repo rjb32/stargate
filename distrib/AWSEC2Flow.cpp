@@ -38,7 +38,7 @@ constexpr const char* DEFAULT_VPC_CIDR = "10.0.0.0/16";
 constexpr const char* DEFAULT_SUBNET_CIDR = "10.0.1.0/24";
 constexpr const char* SECURITY_GROUP_NAME = "stargate-sg";
 constexpr const char* SECURITY_GROUP_DESCRIPTION =
-    "Stargate security group (SSH ingress)";
+    "Stargate security group (SSH + DCV ingress)";
 constexpr const char* ROUTE_TABLE_NAME = "stargate-public-rtb";
 constexpr const char* IGW_NAME = "stargate-igw";
 constexpr const char* AWS_NONE = "None";
@@ -47,6 +47,189 @@ constexpr const char* XILINX_AMI_NAME_FILTER = "*Vivado*";
 constexpr int SSH_PORT = 22;
 constexpr const char* SSH_BANNER =
     "========================================================================";
+
+constexpr const char* DCV_SCRIPT_REMOTE_PATH = "/tmp/stargate-dcv-install.sh";
+constexpr const char* KNOWN_HOSTS_FILE_NAME = "known_hosts";
+constexpr int DCV_PORT = 8443;
+constexpr const char* CHECKIP_URL = "https://checkip.amazonaws.com";
+constexpr int SSH_READY_MAX_ATTEMPTS = 60;
+constexpr int SSH_READY_DELAY_SECONDS = 5;
+
+constexpr const char* DCV_INSTALL_SCRIPT = R"DCVSH(#!/usr/bin/env bash
+set -euo pipefail
+
+DCV_USER="${1:-ubuntu}"
+DCV_PASSWORD="${2:-}"
+
+if [ -z "$DCV_PASSWORD" ]; then
+    echo "DCV install: missing password argument"
+    exit 1
+fi
+
+if command -v dcv >/dev/null 2>&1; then
+    echo "DCV already installed, skipping install"
+    INSTALL_DCV=0
+else
+    INSTALL_DCV=1
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+
+wait_for_apt() {
+    if command -v cloud-init >/dev/null 2>&1; then
+        echo "Waiting for cloud-init to finish..."
+        cloud-init status --wait || true
+    fi
+    for i in $(seq 1 120); do
+        if ! fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+            && ! fuser /var/lib/dpkg/lock >/dev/null 2>&1 \
+            && ! fuser /var/lib/apt/lists/lock >/dev/null 2>&1; then
+            return 0
+        fi
+        echo "Waiting for apt/dpkg lock (attempt ${i})..."
+        sleep 5
+    done
+    echo "Timed out waiting for apt/dpkg lock"
+    return 1
+}
+
+if [ "$INSTALL_DCV" = "1" ]; then
+    wait_for_apt
+    apt-get update -y
+    apt-get install -y mesa-utils x11-xserver-utils \
+        xserver-xorg-video-dummy wget gnupg lsb-release ca-certificates
+    apt-get install -y --no-install-recommends \
+        mate-desktop-environment mate-panel mate-menus mate-terminal \
+        dbus-x11 xfonts-base fonts-dejavu-core
+
+    TMPDIR=$(mktemp -d)
+    cd "$TMPDIR"
+
+    wget -q https://d1uj6qtbmh3dt5.cloudfront.net/NICE-GPG-KEY
+    gpg --import NICE-GPG-KEY
+
+    TARBALL=nice-dcv-2023.1-16388-ubuntu2204-x86_64.tgz
+    wget -q https://d1uj6qtbmh3dt5.cloudfront.net/2023.1/Servers/${TARBALL}
+    tar xf "${TARBALL}"
+    cd nice-dcv-2023.1-16388-ubuntu2204-x86_64
+    wait_for_apt
+    apt-get install -y \
+        ./nice-dcv-server_*.deb \
+        ./nice-xdcv_*.deb \
+        ./nice-dcv-web-viewer_*.deb
+fi
+
+usermod -aG video "$DCV_USER" || true
+
+cat > /etc/dcv/permissions.conf <<'EOF'
+[permissions]
+%any% allow builtin
+EOF
+chmod 644 /etc/dcv/permissions.conf
+
+# DCV also reads /etc/dcv/default.perm for any session that doesn't specify
+# a permissions file. Keep it in sync so both paths lead to "any client allowed".
+cp -f /etc/dcv/permissions.conf /etc/dcv/default.perm
+chmod 644 /etc/dcv/default.perm
+
+cat > /etc/dcv/dcv.conf <<'EOF'
+[license]
+
+[log]
+
+[session-management]
+create-session = false
+virtual-session-default-permissions-file = "/etc/dcv/permissions.conf"
+
+[display]
+
+[connectivity]
+web-listen-endpoints = ['0.0.0.0:8443']
+quic-listen-endpoints = ['0.0.0.0:8443']
+enable-quic-frontend = true
+
+[security]
+authentication = "system"
+EOF
+
+echo "${DCV_USER}:${DCV_PASSWORD}" | chpasswd
+
+if [ -f /etc/ssh/sshd_config ]; then
+    if grep -qE '^[#[:space:]]*PasswordAuthentication' /etc/ssh/sshd_config; then
+        sed -i 's/^[#[:space:]]*PasswordAuthentication.*/PasswordAuthentication no/' \
+            /etc/ssh/sshd_config
+    else
+        echo "PasswordAuthentication no" >> /etc/ssh/sshd_config
+    fi
+    systemctl reload ssh || systemctl reload sshd || true
+fi
+
+cat > /etc/systemd/system/stargate-dcv-session.service <<EOF
+[Unit]
+Description=Stargate DCV virtual session for ${DCV_USER}
+After=dcvserver.service
+Requires=dcvserver.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/bash -c 'for i in \$(seq 1 60); do /usr/bin/dcv list-sessions >/dev/null 2>&1 && exit 0; sleep 1; done; exit 1'
+ExecStart=/usr/bin/dcv create-session --type=virtual --owner ${DCV_USER} --user ${DCV_USER} --permissions-file /etc/dcv/permissions.conf stargate
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# DCV virtual sessions run ~/.xsession with a sparse environment. mate-session
+# uses XDG_DATA_DIRS/XDG_CONFIG_DIRS to locate /usr/share/mate-session/sessions/
+# mate.session and the autostart files that launch mate-panel. Without these
+# explicitly set, mate-session loads a degenerate session and the top panel
+# never starts.
+DCV_HOME=$(getent passwd "${DCV_USER}" | cut -d: -f6)
+if [ -n "${DCV_HOME}" ] && [ -d "${DCV_HOME}" ]; then
+    cat > "${DCV_HOME}/.xsession" <<'EOF'
+#!/bin/sh
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=MATE
+export DESKTOP_SESSION=mate
+export XDG_DATA_DIRS="/usr/share/mate:/usr/local/share:/usr/share:${XDG_DATA_DIRS:-}"
+export XDG_CONFIG_DIRS="/etc/xdg/xdg-mate:/etc/xdg:${XDG_CONFIG_DIRS:-}"
+exec dbus-launch --exit-with-session mate-session --session=mate
+EOF
+    chown "${DCV_USER}:${DCV_USER}" "${DCV_HOME}/.xsession"
+    chmod 755 "${DCV_HOME}/.xsession"
+fi
+
+systemctl daemon-reload
+systemctl enable dcvserver.service stargate-dcv-session.service
+systemctl restart dcvserver.service
+
+# Wait for dcvserver to be responsive before touching sessions.
+for i in $(seq 1 60); do
+    if /usr/bin/dcv list-sessions >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+# Close any pre-existing sessions (including the default console session,
+# or a stale `stargate` from a prior install) to free the single-session slot.
+for sid in $(/usr/bin/dcv list-sessions 2>/dev/null \
+    | sed -n "s/^Session: '\\([^']*\\)'.*/\\1/p"); do
+    /usr/bin/dcv close-session "${sid}" || true
+done
+
+# Create the session inline (systemd unit covers reboots).
+/usr/bin/dcv create-session \
+    --type=virtual \
+    --owner "${DCV_USER}" \
+    --user "${DCV_USER}" \
+    --permissions-file /etc/dcv/permissions.conf \
+    stargate
+
+/usr/bin/dcv list-sessions
+
+echo "DCV ready on 0.0.0.0:8443 TCP+QUIC (session=stargate, user=${DCV_USER})"
+)DCVSH";
 
 constexpr const char* LS_TYPE_VPC = "VPC";
 constexpr const char* LS_TYPE_SUBNET = "Subnet";
@@ -85,9 +268,15 @@ bool isYesAnswer(const std::string& answer) {
 }
 
 void confirmCreate(const std::string& resourceDescription) {
+    if (isInfraYesMode()) {
+        spdlog::info("auto-approving (--yes): {}", resourceDescription);
+        return;
+    }
+
     if (!isatty(STDIN_FILENO)) {
         panic("Cannot prompt for confirmation: stdin is not a terminal. "
-              "Re-run {} interactively to create missing AWS resources.",
+              "Re-run {} interactively to create missing AWS resources, "
+              "or pass --yes.",
               resourceDescription);
     }
 
@@ -108,10 +297,17 @@ void confirmDestroy(const std::vector<std::string>& toDestroy) {
     for (const auto& entry : toDestroy) {
         std::cout << "  - " << entry << "\n";
     }
+
+    if (isInfraYesMode()) {
+        std::cout << "auto-approving destroy (--yes)\n" << std::flush;
+        return;
+    }
+
     std::cout << "This action is irreversible. Proceed? [y/N]: " << std::flush;
 
     if (!isatty(STDIN_FILENO)) {
-        panic("Cannot prompt for destroy: stdin is not a terminal.");
+        panic("Cannot prompt for destroy: stdin is not a terminal. "
+              "Re-run interactively, or pass --yes.");
     }
 
     std::string answer;
@@ -124,27 +320,42 @@ void confirmDestroy(const std::vector<std::string>& toDestroy) {
     }
 }
 
-void confirmReuse(const std::vector<std::string>& found) {
-    std::cout << "Found existing Stargate AWS resources:\n";
-    for (const auto& entry : found) {
-        std::cout << "  - " << entry << "\n";
+void confirmProvisionPlan(const std::vector<std::string>& toReuse,
+                          const std::vector<std::string>& toCreate) {
+    std::cout << "Stargate provisioning plan:\n";
+    if (!toReuse.empty()) {
+        std::cout << "\n  Existing resources to reuse:\n";
+        for (const auto& entry : toReuse) {
+            std::cout << "    - " << entry << "\n";
+        }
     }
-    std::cout << "Reuse these and finish the provision? [y/N]: " << std::flush;
+    if (!toCreate.empty()) {
+        std::cout << "\n  Resources to create:\n";
+        for (const auto& entry : toCreate) {
+            std::cout << "    - " << entry << "\n";
+        }
+    }
+    std::cout << "\n";
+
+    if (isInfraYesMode()) {
+        std::cout << "auto-approving plan (--yes)\n" << std::flush;
+        return;
+    }
+
+    std::cout << "Proceed? [y/N]: " << std::flush;
 
     if (!isatty(STDIN_FILENO)) {
-        panic("Cannot prompt for reuse: stdin is not a terminal. "
-              "Re-run interactively, or delete the resources to provision fresh.");
+        panic("Cannot prompt for plan: stdin is not a terminal. "
+              "Re-run interactively, or pass --yes.");
     }
 
     std::string answer;
     if (!std::getline(std::cin, answer)) {
-        panic("Failed to read reuse confirmation");
+        panic("Failed to read plan confirmation");
     }
 
     if (!isYesAnswer(answer)) {
-        panic("Aborted by user: reuse declined. Delete the existing AWS "
-              "resources (or pick different names in the distrib config) "
-              "before re-running.");
+        panic("Aborted by user: provisioning plan declined");
     }
 }
 
@@ -208,7 +419,7 @@ void AWSEC2Flow::logDryActions(const AWSEC2Config* config) {
     spdlog::info("AWSEC2 infra init: [dry] ensuring public route table "
                  "with default route via IGW");
     spdlog::info("AWSEC2 infra init: [dry] ensuring security group "
-                 "(SSH ingress only)");
+                 "(SSH + DCV ingress)");
     spdlog::info("AWSEC2 infra init: [dry] ensuring key pair '{}' "
                  "(pem will be written under the awsec2 flow dir)",
                  config->getKeyPairName());
@@ -227,6 +438,14 @@ void AWSEC2Flow::logDryActions(const AWSEC2Config* config) {
     spdlog::info("AWSEC2 infra init: [dry] launching build instance '{}' "
                  "(type {}) and waiting for public IP",
                  buildInstanceName, config->getBuildInstanceType());
+    spdlog::info("AWSEC2 infra init: [dry] installing NICE DCV server "
+                 "(listening on 0.0.0.0:{} for TCP+QUIC) via ssh",
+                 DCV_PORT);
+    spdlog::info("AWSEC2 infra init: [dry] opening DCV port {} (TCP+UDP) "
+                 "in security group to your current public IP",
+                 DCV_PORT);
+    spdlog::info("AWSEC2 infra init: [dry] generating DCV password and "
+                 "writing it under the awsec2 flow dir as dcv_password.txt");
 
     DistribFlowManager* manager = getManager();
     const std::string& distribDir = manager->getDistribDir();
@@ -271,8 +490,15 @@ void AWSEC2Flow::provision(const AWSEC2Config* config) {
     spdlog::info("AWSEC2 infra init: probing AWS for existing Stargate resources");
     std::vector<std::string> foundResources;
     detectExistingInfra(cli, config, foundResources);
+
+    std::vector<std::string> plannedCreates;
+    collectProvisionPlan(cli, config, flowDir, plannedCreates);
+
+    if (!foundResources.empty() || !plannedCreates.empty()) {
+        confirmProvisionPlan(foundResources, plannedCreates);
+        setInfraYesMode(true);
+    }
     if (!foundResources.empty()) {
-        confirmReuse(foundResources);
         spdlog::info("AWSEC2 infra init: reusing existing Stargate AWS resources");
     }
 
@@ -290,6 +516,7 @@ void AWSEC2Flow::provision(const AWSEC2Config* config) {
 
     std::string securityGroupId;
     ensureSecurityGroup(cli, vpcId, securityGroupId);
+    ensureDCVIngress(cli, securityGroupId);
 
     std::string pemPath;
     ensureKeyPair(cli, config, flowDir, pemPath);
@@ -303,6 +530,8 @@ void AWSEC2Flow::provision(const AWSEC2Config* config) {
     ensureBuildInstance(cli, config, subnetId, securityGroupId, amiId,
                         buildInstanceId, buildInstanceName,
                         buildInstancePublicIP);
+
+    installDCV(config, flowDir, pemPath, buildInstancePublicIP);
 
     writeAWSInfra(config,
                   awsInfraPath,
@@ -320,6 +549,8 @@ void AWSEC2Flow::provision(const AWSEC2Config* config) {
     spdlog::info("AWSEC2 infra init: to ssh into the build instance, run:");
     spdlog::info("    ssh -i {} {}@{}",
                  pemPath, config->getSSHUser(), buildInstancePublicIP);
+    spdlog::info("AWSEC2 infra init: DCV credentials saved to {}",
+                 joinPath(flowDir, "dcv_password.txt"));
     spdlog::info(SSH_BANNER);
 }
 
@@ -441,6 +672,366 @@ void AWSEC2Flow::lookupBuildInstances(AWSCLI& cli,
         if (!token.empty()) {
             instanceIds.push_back(token);
         }
+    }
+}
+
+namespace {
+
+int popenExit(const std::string& cmd, std::string& output) {
+    output.clear();
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) {
+        panic("Failed to popen: {}", cmd);
+    }
+    char buffer[4096];
+    while (true) {
+        const size_t n = fread(buffer, 1, sizeof(buffer), pipe);
+        if (n == 0) {
+            break;
+        }
+        output.append(buffer, n);
+    }
+    const int status = pclose(pipe);
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    return -1;
+}
+
+std::string shellQuoteSingle(const std::string& arg) {
+    std::string result = "'";
+    for (char c : arg) {
+        if (c == '\'') {
+            result += "'\\''";
+        } else {
+            result += c;
+        }
+    }
+    result += "'";
+    return result;
+}
+
+std::string buildSSHOpts(const std::string& pemPath,
+                         const std::string& knownHostsPath) {
+    std::string opts;
+    opts += " -i " + shellQuoteSingle(pemPath);
+    opts += " -o StrictHostKeyChecking=accept-new";
+    opts += " -o BatchMode=yes";
+    if (!knownHostsPath.empty()) {
+        opts += " -o UserKnownHostsFile=" + shellQuoteSingle(knownHostsPath);
+    }
+    return opts;
+}
+
+}
+
+void AWSEC2Flow::waitForSSH(const std::string& pemPath,
+                            const std::string& user,
+                            const std::string& host,
+                            const std::string& knownHostsPath) {
+    spdlog::info("AWSEC2: waiting for ssh on {}@{}", user, host);
+
+    const std::string cmd = "ssh" + buildSSHOpts(pemPath, knownHostsPath)
+        + " -o ConnectTimeout=5"
+        + " " + shellQuoteSingle(user + "@" + host)
+        + " true 2>&1";
+
+    std::string output;
+    for (int i = 0; i < SSH_READY_MAX_ATTEMPTS; i++) {
+        const int rc = popenExit(cmd, output);
+        if (rc == 0) {
+            spdlog::info("AWSEC2: ssh is ready on {}@{}", user, host);
+            return;
+        }
+        sleep(SSH_READY_DELAY_SECONDS);
+    }
+    panic("Timed out waiting for ssh on {}@{}:\n{}", user, host, output);
+}
+
+int AWSEC2Flow::runSSH(const std::string& pemPath,
+                       const std::string& user,
+                       const std::string& host,
+                       const std::string& knownHostsPath,
+                       const std::string& remoteCommand,
+                       std::string& output) {
+    const std::string cmd = "ssh" + buildSSHOpts(pemPath, knownHostsPath)
+        + " " + shellQuoteSingle(user + "@" + host)
+        + " " + shellQuoteSingle(remoteCommand)
+        + " 2>&1";
+    return popenExit(cmd, output);
+}
+
+int AWSEC2Flow::runSCP(const std::string& pemPath,
+                       const std::string& user,
+                       const std::string& host,
+                       const std::string& knownHostsPath,
+                       const std::string& localPath,
+                       const std::string& remotePath) {
+    const std::string cmd = "scp" + buildSSHOpts(pemPath, knownHostsPath)
+        + " " + shellQuoteSingle(localPath)
+        + " " + shellQuoteSingle(user + "@" + host + ":" + remotePath)
+        + " 2>&1";
+    std::string output;
+    const int rc = popenExit(cmd, output);
+    if (rc != 0) {
+        spdlog::error("scp failed (rc={}): {}", rc, output);
+    }
+    return rc;
+}
+
+bool AWSEC2Flow::isDCVInstalled(const AWSEC2Config* config,
+                                const std::string& pemPath,
+                                const std::string& knownHostsPath,
+                                const std::string& publicIP) {
+    std::string output;
+    const int rc = runSSH(pemPath, config->getSSHUser(), publicIP,
+                          knownHostsPath, "command -v dcv", output);
+    return rc == 0;
+}
+
+void AWSEC2Flow::installDCV(const AWSEC2Config* config,
+                            const std::string& flowDir,
+                            const std::string& pemPath,
+                            const std::string& publicIP) {
+    const std::string knownHostsPath =
+        flowDir.empty() ? std::string() : joinPath(flowDir, KNOWN_HOSTS_FILE_NAME);
+
+    waitForSSH(pemPath, config->getSSHUser(), publicIP, knownHostsPath);
+
+    const std::string scriptPath =
+        flowDir.empty() ? std::string("/tmp/stargate-dcv-install.sh")
+                        : joinPath(flowDir, "dcv-install.sh");
+    {
+        std::ofstream out(scriptPath);
+        if (!out.is_open()) {
+            panic("Failed to write DCV install script: {}", scriptPath);
+        }
+        out << DCV_INSTALL_SCRIPT;
+    }
+    if (chmod(scriptPath.c_str(), S_IRUSR | S_IWUSR | S_IXUSR) != 0) {
+        panic("Failed to chmod DCV install script: {}", scriptPath);
+    }
+
+    spdlog::info("AWSEC2 infra init: uploading DCV install script to instance");
+    const int scpRc = runSCP(pemPath, config->getSSHUser(), publicIP,
+                             knownHostsPath, scriptPath,
+                             DCV_SCRIPT_REMOTE_PATH);
+    if (scpRc != 0) {
+        panic("Failed to upload DCV install script (rc={})", scpRc);
+    }
+
+    std::string dcvPassword;
+    ensureDCVPassword(flowDir, dcvPassword);
+
+    spdlog::info("AWSEC2 infra init: running DCV install on instance "
+                 "(this may take a few minutes)");
+    std::string output;
+    const std::string remoteCmd =
+        "sudo bash " + std::string(DCV_SCRIPT_REMOTE_PATH)
+        + " " + shellQuoteSingle(config->getSSHUser())
+        + " " + shellQuoteSingle(dcvPassword);
+    const int rc = runSSH(pemPath, config->getSSHUser(), publicIP,
+                          knownHostsPath, remoteCmd, output);
+    if (rc != 0) {
+        spdlog::error("DCV install output:\n{}", output);
+        panic("DCV install failed (rc={})", rc);
+    }
+    spdlog::info("AWSEC2 infra init: DCV install complete");
+}
+
+void AWSEC2Flow::gui(const DistribConfig* config, GUIAction action) {
+    if (!config) {
+        panic("AWSEC2Flow::gui requires a distrib config");
+    }
+
+    const AWSEC2Config* awsec2Config = config->getAWSEC2Config();
+    if (!awsec2Config) {
+        panic("AWSEC2Flow::gui requires an awsec2 config section");
+    }
+
+    AWSCLI cli;
+    cli.setRegion(awsec2Config->getRegion());
+    cli.setProfile(awsec2Config->getProfile());
+
+    std::string vpcId;
+    lookupVPC(cli, awsec2Config->getVPCName(), vpcId);
+    if (vpcId.empty()) {
+        panic("AWSEC2 infra gui: VPC '{}' not found; run 'infra init' first",
+              awsec2Config->getVPCName());
+    }
+
+    std::vector<std::string> instanceIds;
+    lookupBuildInstances(cli, vpcId, instanceIds);
+    if (instanceIds.empty()) {
+        panic("AWSEC2 infra gui: no build instance found; "
+              "run 'infra init' / 'infra start' first");
+    }
+
+    const std::string& instanceId = instanceIds.front();
+
+    std::string state;
+    cli.run({"ec2", "describe-instances",
+             "--instance-ids", instanceId,
+             "--query", "Reservations[0].Instances[0].State.Name",
+             "--output", "text"},
+            state);
+    if (state != "running") {
+        panic("Build instance {} is '{}', not running; run 'infra start' first",
+              instanceId, state);
+    }
+
+    std::string publicIP;
+    cli.run({"ec2", "describe-instances",
+             "--instance-ids", instanceId,
+             "--query", "Reservations[0].Instances[0].PublicIpAddress",
+             "--output", "text"},
+            publicIP);
+    if (isEmptyAWSResult(publicIP)) {
+        panic("Build instance {} has no public IP", instanceId);
+    }
+
+    DistribFlowManager* manager = getManager();
+    const std::string& distribDir = manager->getDistribDir();
+    std::string flowDir;
+    std::string pemPath;
+    if (!distribDir.empty()) {
+        flowDir = joinPath(distribDir, AWSEC2_SUBDIR_NAME);
+        pemPath = joinPath(flowDir,
+                           awsec2Config->getKeyPairName() + ".pem");
+    }
+    if (pemPath.empty() || !FileUtils::exists(pemPath)) {
+        panic("AWSEC2 infra gui: pem not found at {} (run 'infra init' first)",
+              pemPath);
+    }
+
+    const std::string knownHostsPath = joinPath(flowDir, KNOWN_HOSTS_FILE_NAME);
+    waitForSSH(pemPath, awsec2Config->getSSHUser(), publicIP, knownHostsPath);
+
+    if (!isDCVInstalled(awsec2Config, pemPath, knownHostsPath, publicIP)) {
+        panic("DCV is not installed on the instance. Re-run 'infra init' "
+              "to install it.");
+    }
+
+    switch (action) {
+    case GUIAction::OPEN:
+        guiOpen(cli, awsec2Config, vpcId, publicIP, flowDir, pemPath,
+                knownHostsPath);
+        break;
+    case GUIAction::START:
+        guiStart(awsec2Config, publicIP, pemPath, knownHostsPath);
+        break;
+    case GUIAction::STOP:
+        guiStop(awsec2Config, publicIP, pemPath, knownHostsPath);
+        break;
+    }
+}
+
+void AWSEC2Flow::guiStart(const AWSEC2Config* config,
+                          const std::string& publicIP,
+                          const std::string& pemPath,
+                          const std::string& knownHostsPath) {
+    spdlog::info("AWSEC2 infra gui start: starting dcvserver and "
+                 "stargate-dcv-session on instance");
+    std::string output;
+    const std::string remoteCmd =
+        "sudo systemctl start dcvserver && "
+        "sudo systemctl start stargate-dcv-session && "
+        "/usr/bin/dcv list-sessions";
+    const int rc = runSSH(pemPath, config->getSSHUser(), publicIP,
+                          knownHostsPath, remoteCmd, output);
+    if (rc != 0) {
+        spdlog::error("dcvserver start output:\n{}", output);
+        panic("Failed to start DCV (rc={})", rc);
+    }
+    spdlog::info("AWSEC2 infra gui start: dcv sessions:\n{}", output);
+}
+
+void AWSEC2Flow::guiStop(const AWSEC2Config* config,
+                         const std::string& publicIP,
+                         const std::string& pemPath,
+                         const std::string& knownHostsPath) {
+    spdlog::info("AWSEC2 infra gui stop: stopping stargate-dcv-session and "
+                 "dcvserver on instance");
+    std::string output;
+    const std::string remoteCmd =
+        "sudo systemctl stop stargate-dcv-session || true; "
+        "sudo systemctl stop dcvserver || true; "
+        "systemctl is-active dcvserver || true";
+    const int rc = runSSH(pemPath, config->getSSHUser(), publicIP,
+                          knownHostsPath, remoteCmd, output);
+    if (rc != 0) {
+        spdlog::error("dcvserver stop output:\n{}", output);
+        panic("Failed to stop DCV (rc={})", rc);
+    }
+    spdlog::info("AWSEC2 infra gui stop: DCV stopped");
+}
+
+void AWSEC2Flow::guiOpen(AWSCLI& cli,
+                         const AWSEC2Config* config,
+                         const std::string& vpcId,
+                         const std::string& publicIP,
+                         const std::string& flowDir,
+                         const std::string& pemPath,
+                         const std::string& knownHostsPath) {
+    spdlog::info("AWSEC2 infra gui: ensuring dcvserver is running");
+    std::string startOut;
+    const std::string ensureCmd =
+        "sudo systemctl is-active --quiet dcvserver || "
+        "sudo systemctl start dcvserver; "
+        "sudo systemctl is-active --quiet stargate-dcv-session || "
+        "sudo systemctl start stargate-dcv-session; "
+        "/usr/bin/dcv list-sessions";
+    const int ensureRc = runSSH(pemPath, config->getSSHUser(),
+                                publicIP, knownHostsPath,
+                                ensureCmd, startOut);
+    if (ensureRc != 0) {
+        spdlog::error("dcvserver start output:\n{}", startOut);
+        panic("Failed to start dcvserver on instance (rc={})", ensureRc);
+    }
+    spdlog::info("AWSEC2 infra gui: dcv sessions:\n{}", startOut);
+
+    std::string securityGroupId;
+    lookupSecurityGroup(cli, vpcId, securityGroupId);
+    if (securityGroupId.empty()) {
+        panic("AWSEC2 infra gui: security group '{}' not found in VPC {}; "
+              "run 'infra init' first",
+              SECURITY_GROUP_NAME, vpcId);
+    }
+    ensureDCVIngress(cli, securityGroupId);
+
+    const std::string passPath = joinPath(flowDir, "dcv_password.txt");
+    if (!FileUtils::exists(passPath)) {
+        panic("AWSEC2 infra gui: DCV password file not found at {} "
+              "(run 'infra init' first)",
+              passPath);
+    }
+    std::string dcvPassword;
+    {
+        std::ifstream in(passPath);
+        if (!in.is_open()) {
+            panic("Failed to read DCV password file: {}", passPath);
+        }
+        std::getline(in, dcvPassword);
+    }
+    if (dcvPassword.empty()) {
+        panic("DCV password file {} is empty", passPath);
+    }
+
+    const std::string url = fmt::format("https://{}:{}/#stargate",
+                                        publicIP, DCV_PORT);
+
+    spdlog::info(SSH_BANNER);
+    spdlog::info("AWSEC2 infra gui: DCV ready at {}", url);
+    spdlog::info("AWSEC2 infra gui: login user     = {}",
+                 config->getSSHUser());
+    spdlog::info("AWSEC2 infra gui: login password = {}", dcvPassword);
+    spdlog::info("AWSEC2 infra gui: opening DCV client in your browser");
+    spdlog::info(SSH_BANNER);
+
+    const std::string openCmd =
+        "open " + shellQuoteSingle(url) + " >/dev/null 2>&1 &";
+    if (std::system(openCmd.c_str()) == -1) {
+        spdlog::warn("Failed to launch DCV client; open {} manually", url);
     }
 }
 
@@ -754,6 +1345,12 @@ void AWSEC2Flow::removeLocalFlowState(const std::string& flowDir,
     if (FileUtils::exists(awsInfraPath)) {
         spdlog::info("AWSEC2 infra destroy: removing {}", awsInfraPath);
         ::unlink(awsInfraPath.c_str());
+    }
+
+    const std::string passPath = joinPath(flowDir, "dcv_password.txt");
+    if (FileUtils::exists(passPath)) {
+        spdlog::info("AWSEC2 infra destroy: removing {}", passPath);
+        ::unlink(passPath.c_str());
     }
 }
 
@@ -1247,6 +1844,101 @@ void AWSEC2Flow::detectExistingInfra(AWSCLI& cli,
     }
 }
 
+void AWSEC2Flow::collectProvisionPlan(AWSCLI& cli,
+                                      const AWSEC2Config* config,
+                                      const std::string& flowDir,
+                                      std::vector<std::string>& toCreate) {
+    std::string vpcId;
+    lookupVPC(cli, config->getVPCName(), vpcId);
+    const bool vpcExists = !vpcId.empty();
+    const std::string vpcRef =
+        vpcExists ? vpcId : std::string("(to be created)");
+
+    if (!vpcExists) {
+        toCreate.push_back(fmt::format("VPC '{}' (CIDR {}) in region {}",
+                                       config->getVPCName(),
+                                       DEFAULT_VPC_CIDR,
+                                       cli.getRegion()));
+    }
+
+    std::string subnetId;
+    if (vpcExists) {
+        lookupSubnet(cli, config->getPublicSubnetName(), vpcId, subnetId);
+    }
+    if (subnetId.empty()) {
+        toCreate.push_back(fmt::format(
+            "Public subnet '{}' (CIDR {}) in VPC {}",
+            config->getPublicSubnetName(), DEFAULT_SUBNET_CIDR, vpcRef));
+    }
+
+    std::string igwId;
+    if (vpcExists) {
+        lookupIGW(cli, vpcId, igwId);
+    }
+    if (igwId.empty()) {
+        toCreate.push_back(fmt::format(
+            "Internet gateway attached to VPC {}", vpcRef));
+    }
+
+    std::string routeTableId;
+    if (vpcExists) {
+        lookupRouteTable(cli, vpcId, routeTableId);
+    }
+    if (routeTableId.empty()) {
+        toCreate.push_back(fmt::format(
+            "Public route table '{}' in VPC {} (default route via IGW, "
+            "associated with the public subnet)",
+            ROUTE_TABLE_NAME, vpcRef));
+    }
+
+    std::string securityGroupId;
+    if (vpcExists) {
+        lookupSecurityGroup(cli, vpcId, securityGroupId);
+    }
+    if (securityGroupId.empty()) {
+        toCreate.push_back(fmt::format(
+            "Security group '{}' in VPC {} (SSH + DCV ingress)",
+            SECURITY_GROUP_NAME, vpcRef));
+    }
+
+    const std::string& keyName = config->getKeyPairName();
+    const std::string pemPath = joinPath(flowDir, keyName + ".pem");
+    std::string awsKeyName;
+    cli.run({"ec2", "describe-key-pairs",
+             "--filters", "Name=key-name,Values=" + keyName,
+             "--query", "KeyPairs[0].KeyName",
+             "--output", "text"},
+            awsKeyName);
+    const bool awsHasKey = !isEmptyAWSResult(awsKeyName);
+    const bool pemExists = FileUtils::exists(pemPath);
+    if (!awsHasKey && !pemExists) {
+        toCreate.push_back(fmt::format(
+            "EC2 key pair '{}' in region {} (pem at {})",
+            keyName, cli.getRegion(), pemPath));
+    }
+
+    bool instanceExists = false;
+    if (!subnetId.empty()) {
+        std::string existing;
+        cli.run({"ec2", "describe-instances",
+                 "--filters",
+                 std::string("Name=tag:Name,Values=")
+                     + BUILD_INSTANCE_NAME_PREFIX + "*",
+                 "Name=subnet-id,Values=" + subnetId,
+                 std::string("Name=instance-state-name,")
+                     + "Values=pending,running,stopped,stopping",
+                 "--query", "Reservations[0].Instances[0].InstanceId",
+                 "--output", "text"},
+                existing);
+        instanceExists = !isEmptyAWSResult(existing);
+    }
+    if (!instanceExists) {
+        toCreate.push_back(fmt::format(
+            "Build instance '{}*' (type {}, latest Vivado AMI)",
+            BUILD_INSTANCE_NAME_PREFIX, config->getBuildInstanceType()));
+    }
+}
+
 void AWSEC2Flow::ensureVPC(AWSCLI& cli,
                            const AWSEC2Config* config,
                            std::string& vpcId) {
@@ -1452,8 +2144,175 @@ void AWSEC2Flow::ensureSecurityGroup(AWSCLI& cli,
             ingressOutput);
 
     spdlog::info("AWSEC2 infra init: created security group {} "
-                 "with SSH ingress",
+                 "with SSH ingress (DCV ingress added separately)",
                  securityGroupId);
+}
+
+void AWSEC2Flow::detectPublicIP(std::string& ip) {
+    ip.clear();
+
+    const std::string cmd = std::string("curl -fsS ") + CHECKIP_URL;
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) {
+        panic("Failed to invoke curl to detect public IP");
+    }
+
+    char buffer[128];
+    while (true) {
+        const size_t n = fread(buffer, 1, sizeof(buffer), pipe);
+        if (n == 0) {
+            break;
+        }
+        ip.append(buffer, n);
+    }
+
+    const int status = pclose(pipe);
+    int exitCode = -1;
+    if (WIFEXITED(status)) {
+        exitCode = WEXITSTATUS(status);
+    }
+    if (exitCode != 0) {
+        panic("curl {} failed (exit {})", CHECKIP_URL, exitCode);
+    }
+
+    while (!ip.empty()
+           && (ip.back() == '\n' || ip.back() == '\r' || ip.back() == ' ')) {
+        ip.pop_back();
+    }
+    if (ip.empty()) {
+        panic("Detected public IP is empty (from {})", CHECKIP_URL);
+    }
+}
+
+void AWSEC2Flow::listSGIngressCIDRs(AWSCLI& cli,
+                                    const std::string& sgId,
+                                    const std::string& proto,
+                                    int port,
+                                    std::vector<std::string>& cidrs) {
+    cidrs.clear();
+
+    const std::string query = fmt::format(
+        "SecurityGroups[0].IpPermissions[?FromPort==`{}` && IpProtocol==`{}`]"
+        ".IpRanges[].CidrIp",
+        port, proto);
+
+    std::string raw;
+    cli.run({"ec2", "describe-security-groups",
+             "--group-ids", sgId,
+             "--query", query,
+             "--output", "text"},
+            raw);
+
+    if (isEmptyAWSResult(raw)) {
+        return;
+    }
+
+    std::string token;
+    for (const char c : raw) {
+        if (c == '\t' || c == '\n' || c == ' ' || c == '\r') {
+            if (!token.empty()) {
+                cidrs.push_back(token);
+                token.clear();
+            }
+        } else {
+            token += c;
+        }
+    }
+    if (!token.empty()) {
+        cidrs.push_back(token);
+    }
+}
+
+void AWSEC2Flow::ensureDCVIngress(AWSCLI& cli, const std::string& sgId) {
+    std::string ip;
+    detectPublicIP(ip);
+    const std::string desiredCidr = ip + "/32";
+    spdlog::info("AWSEC2 DCV ingress: ensuring SG {} allows TCP+UDP/{} "
+                 "from {}",
+                 sgId, DCV_PORT, desiredCidr);
+
+    const std::array<const char*, 2> protos = {"tcp", "udp"};
+    for (const char* proto : protos) {
+        std::vector<std::string> cidrs;
+        listSGIngressCIDRs(cli, sgId, proto, DCV_PORT, cidrs);
+
+        bool desiredPresent = false;
+        for (const std::string& cidr : cidrs) {
+            if (cidr == desiredCidr) {
+                desiredPresent = true;
+                continue;
+            }
+            spdlog::info("AWSEC2 DCV ingress: revoking stale {}/{} rule "
+                         "from {}",
+                         proto, DCV_PORT, cidr);
+            std::string out;
+            cli.run({"ec2", "revoke-security-group-ingress",
+                     "--group-id", sgId,
+                     "--protocol", proto,
+                     "--port", std::to_string(DCV_PORT),
+                     "--cidr", cidr},
+                    out);
+        }
+
+        if (!desiredPresent) {
+            spdlog::info("AWSEC2 DCV ingress: authorizing {}/{} from {}",
+                         proto, DCV_PORT, desiredCidr);
+            std::string out;
+            cli.run({"ec2", "authorize-security-group-ingress",
+                     "--group-id", sgId,
+                     "--protocol", proto,
+                     "--port", std::to_string(DCV_PORT),
+                     "--cidr", desiredCidr},
+                    out);
+        }
+    }
+}
+
+void AWSEC2Flow::ensureDCVPassword(const std::string& flowDir,
+                                   std::string& password) {
+    password.clear();
+    const std::string passPath = joinPath(flowDir, "dcv_password.txt");
+
+    if (FileUtils::exists(passPath)) {
+        std::ifstream in(passPath);
+        if (!in.is_open()) {
+            panic("Failed to read DCV password file: {}", passPath);
+        }
+        std::getline(in, password);
+        if (password.empty()) {
+            panic("DCV password file {} is empty", passPath);
+        }
+        spdlog::info("AWSEC2 infra init: reusing DCV password from {}",
+                     passPath);
+        return;
+    }
+
+    constexpr const char* PASSWORD_CHARSET =
+        "abcdefghijklmnopqrstuvwxyz"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "0123456789";
+    constexpr size_t PASSWORD_LENGTH = 32;
+    constexpr size_t CHARSET_SIZE = 62;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<size_t> dist(0, CHARSET_SIZE - 1);
+    for (size_t i = 0; i < PASSWORD_LENGTH; ++i) {
+        password += PASSWORD_CHARSET[dist(gen)];
+    }
+
+    std::ofstream out(passPath);
+    if (!out.is_open()) {
+        panic("Failed to write DCV password file: {}", passPath);
+    }
+    out << password << "\n";
+    out.close();
+
+    if (chmod(passPath.c_str(), S_IRUSR | S_IWUSR) != 0) {
+        panic("Failed to chmod 600 DCV password file: {}", passPath);
+    }
+
+    spdlog::info("AWSEC2 infra init: generated DCV password at {}", passPath);
 }
 
 void AWSEC2Flow::ensureKeyPair(AWSCLI& cli,

@@ -38,6 +38,7 @@ expected_lines=(
     "\[dry\] ensuring key pair 'stargate-key'"
     "\[dry\] resolving latest Vivado AMI from Xilinx"
     "build instance name = stargate-build-"
+    "\[dry\] installing NICE DCV server"
     "\[dry\] to ssh into the build instance, you will run:"
     "ssh -i .*stargate-key\.pem ubuntu@<INSTANCE_PUBLIC_IP>"
     "dry run complete, skipping aws_infra.toml write"

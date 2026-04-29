@@ -101,6 +101,13 @@ void Stargate::infraDestroy(const ProjectConfig* projectConfig) {
     flow->destroy(distribConfig);
 }
 
+void Stargate::infraGui(const ProjectConfig* projectConfig, GUIAction action) {
+    DistribFlow* flow = nullptr;
+    const DistribConfig* distribConfig = nullptr;
+    getDistribFlow(projectConfig, flow, distribConfig);
+    flow->gui(distribConfig, action);
+}
+
 void Stargate::getDistribFlow(const ProjectConfig* projectConfig,
                               DistribFlow*& flow,
                               const DistribConfig*& distribConfig) {
