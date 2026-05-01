@@ -23,13 +23,31 @@ if [[ "$(uname)" == "Darwin" ]]; then
     else
         echo "cmake is already installed"
     fi
+
+    # bison >= 3.5 (system bison on macOS is 2.3, too old for the C++
+    # skeleton used by the verilog parser). Homebrew bison is keg-only.
+    if ! brew list bison &> /dev/null; then
+        echo "Installing bison via Homebrew..."
+        brew install bison
+    else
+        echo "bison is already installed"
+    fi
+
+    # flex (the macOS system flex works, but Homebrew flex is more
+    # recent and matches the bison upgrade).
+    if ! brew list flex &> /dev/null; then
+        echo "Installing flex via Homebrew..."
+        brew install flex
+    else
+        echo "flex is already installed"
+    fi
 else
     if command -v apt-get &> /dev/null; then
-        sudo apt-get install -y cmake
+        sudo apt-get install -y cmake bison flex
     elif command -v dnf &> /dev/null; then
-        sudo dnf install -y cmake
+        sudo dnf install -y cmake bison flex
     elif command -v yum &> /dev/null; then
-        sudo yum install -y cmake
+        sudo yum install -y cmake bison flex
     else
         echo "No supported package manager found (apt-get, dnf, yum)."
         exit 1
@@ -46,6 +64,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     fi
 
     LLVM_PREFIX=$(brew --prefix $BREW_LLVM_VERSION 2>/dev/null)
+    BISON_PREFIX=$(brew --prefix bison 2>/dev/null)
+    FLEX_PREFIX=$(brew --prefix flex 2>/dev/null)
 
     MACOS_SDK_PATH=$(xcrun --show-sdk-path 2>/dev/null)
 
@@ -56,6 +76,9 @@ if [[ "$(uname)" == "Darwin" ]]; then
         "-DCMAKE_OSX_SYSROOT=${MACOS_SDK_PATH}"
         "-DCMAKE_EXE_LINKER_FLAGS=-L${LLVM_PREFIX}/lib/c++ -Wl,-rpath,${LLVM_PREFIX}/lib/c++"
         "-DCMAKE_SHARED_LINKER_FLAGS=-L${LLVM_PREFIX}/lib/c++ -Wl,-rpath,${LLVM_PREFIX}/lib/c++"
+        "-DBISON_EXECUTABLE=${BISON_PREFIX}/bin/bison"
+        "-DFLEX_EXECUTABLE=${FLEX_PREFIX}/bin/flex"
+        "-DFLEX_INCLUDE_DIR=${FLEX_PREFIX}/include"
     )
 
     QUOTED_ARGS=()
@@ -63,6 +86,10 @@ if [[ "$(uname)" == "Darwin" ]]; then
         QUOTED_ARGS+=("'$arg'")
     done
     echo "export LLVM_PREFIX=${LLVM_PREFIX}" > "$MACOS_SETENV"
+    echo "export BISON_PREFIX=${BISON_PREFIX}" >> "$MACOS_SETENV"
+    echo "export FLEX_PREFIX=${FLEX_PREFIX}" >> "$MACOS_SETENV"
+    echo "export PATH=${BISON_PREFIX}/bin:${FLEX_PREFIX}/bin:\$PATH" \
+        >> "$MACOS_SETENV"
     echo "export CMAKE_ARGS=\"${QUOTED_ARGS[*]}\"" >> "$MACOS_SETENV"
 
     echo "macOS build tools configured (LLVM ${LLVM_MAJOR_VERSION})."

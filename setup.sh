@@ -7,7 +7,8 @@ fi
 
 STARGATE_PATH=$(pwd)/build/tools/stargate/
 SGCDIST_PATH=$(pwd)/build/tools/sgcdist/
+SGCPARSE_PATH=$(pwd)/build/tools/sgcparse/
 
-export PATH=$STARGATE_PATH:$SGCDIST_PATH:$PATH
+export PATH=$STARGATE_PATH:$SGCDIST_PATH:$SGCPARSE_PATH:$PATH
 
 alias sgc=stargate

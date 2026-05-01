@@ -1,2 +1,3 @@
 add_subdirectory(stargate)
 add_subdirectory(sgcdist)
+add_subdirectory(sgcparse)

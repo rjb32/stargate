@@ -37,6 +37,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_subdirectory(external)
 add_subdirectory(common)
+add_subdirectory(verilog)
 add_subdirectory(project)
 add_subdirectory(flow)
 add_subdirectory(distrib)

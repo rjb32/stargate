@@ -6,3 +6,4 @@ __pycache__
 .*.swp
 sgc.out
 regress/*/.run/
+regress/**/src/
