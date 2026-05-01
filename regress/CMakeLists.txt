@@ -8,6 +8,8 @@ macro(regress_test REGRESS_NAME)
 
     set_property(GLOBAL APPEND PROPERTY _REGRESS_NAMES "${REGRESS_NAME}")
     set_property(GLOBAL APPEND PROPERTY _REGRESS_RUNSHS "${_REGRESS_RUNSH}")
+    set_property(GLOBAL APPEND PROPERTY _REGRESS_SRC_DIRS
+                 "${CMAKE_CURRENT_SOURCE_DIR}")
 endmacro()
 
 # Register each regress test directory here
@@ -76,4 +78,43 @@ add_custom_target(run_regress
     COMMAND bash ${_RUN_REGRESS_SH}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/regress
     DEPENDS sgcdist stargate sgcparse
+    USES_TERMINAL)
+
+# Short alias so 'make regress' works in addition to 'make run_regress'.
+add_custom_target(regress DEPENDS run_regress)
+
+# 'make clean_regress' wipes per-regress scratch state (src/ caches of
+# externally-fetched sources and .run/ dirs from sgcdist/awsec2 tests)
+# without touching the build tree itself.
+set(_CLEAN_REGRESS_SH ${CMAKE_BINARY_DIR}/regress/clean_regress.sh)
+get_property(_REGRESS_SRC_DIRS GLOBAL PROPERTY _REGRESS_SRC_DIRS)
+
+file(WRITE ${_CLEAN_REGRESS_SH}
+"#!/bin/bash
+set -u
+echo \"=== Cleaning regress scratch state ===\"
+")
+
+foreach(_dir ${_REGRESS_SRC_DIRS})
+    file(APPEND ${_CLEAN_REGRESS_SH}
+"for sub in src .run; do
+    target=\"${_dir}/$sub\"
+    if [ -e \"$target\" ]; then
+        echo \"  removing $target\"
+        rm -rf \"$target\"
+    fi
+done
+")
+endforeach()
+
+file(APPEND ${_CLEAN_REGRESS_SH} "exit 0
+")
+
+file(CHMOD ${_CLEAN_REGRESS_SH}
+     PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                 GROUP_READ GROUP_EXECUTE
+                 WORLD_READ WORLD_EXECUTE)
+
+add_custom_target(clean_regress
+    COMMAND bash ${_CLEAN_REGRESS_SH}
     USES_TERMINAL)
