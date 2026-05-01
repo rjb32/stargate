@@ -1,0 +1,1 @@
+regress_test(ddr2_controller)
