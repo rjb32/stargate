@@ -1,0 +1,1 @@
+regress_test(ibex)

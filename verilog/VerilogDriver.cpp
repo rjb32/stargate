@@ -43,6 +43,15 @@ int VerilogDriver::parseFile(const std::string& path) {
     _filename = path;
     _errors.clear();
 
+    // Enable SV keywords for `.sv` / `.svh`; treat `.v` / `.vh` as
+    // strict Verilog-2001 so legacy identifiers like `int`, `logic`,
+    // `bit` remain identifiers rather than keywords.
+    const auto dot = path.find_last_of('.');
+    if (dot != std::string::npos) {
+        const std::string ext = path.substr(dot);
+        _svKeywords = (ext == ".sv" || ext == ".svh");
+    }
+
     std::string processed;
     const int prc = _pp->processFile(path, &processed);
     copyPreprocessorErrors();

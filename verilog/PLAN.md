@@ -6,20 +6,55 @@ bison action body is empty.
 
 ## 1. Scope
 
-**Target language:** Verilog-2001 / IEEE 1364-2005.
+**Target language:** Verilog-2001 / IEEE 1364-2005, plus a pragmatic
+SystemVerilog (IEEE 1800) subset.
 
-This covers "most of Verilog" without dragging in SystemVerilog
-(IEEE 1800-2017), which would 5-10x the rule count.
+**Concrete coverage benchmark.** The lowRISC/ibex regress
+(`regress/designs/ibex/`) parses the synthesizable rtl/ tree end-to-
+end — 30 of 30 `.sv` files. That is *not* the full Ibex repository;
+across the whole pinned commit (644 SV/SVH files total) coverage is
+roughly: rtl/ 30/30, vendor/ 184/452, dv/ 9/135, formal/ 1/20,
+shared/ 5/6. The verification (`dv/`) and formal (`formal/`)
+directories are mostly out of reach because they rely on SV class /
+constraint / randomization / assertion features that this parser
+does not accept (see "Out of scope" below). The 30/30 in `rtl/`
+also depends on three OpenTitan headers being stubbed empty so
+their assertion macros expand to nothing — the macro *bodies* would
+not parse.
+
+**SystemVerilog subset accepted** (enable per file by extension —
+`.sv`/`.svh` turn on SV keywords, `.v`/`.vh` keep Verilog-2001):
+- `package ... endpackage`, `import pkg::*;`
+- `typedef` of struct/union/enum/vector
+- Data types: `logic`, `bit`, `byte`, `int`, `longint`, `shortint`,
+  `string`, `void`, with packed dimensions and `signed`/`unsigned`
+- ANSI port lists with typed direction, including scoped types (`pkg::T`)
+- Typed parameters (incl. `parameter type T = ...`)
+- `always_ff`, `always_comb`, `always_latch`
+- `unique`/`unique0`/`priority` on `case` and `if`
+- Scope resolution `pkg::IDENT` in expressions and types
+- Unsized literals (`'0`, `'1`, `'x`, `'z`), assignment patterns
+  `'{...}`, casts `<type>'(expr)` including `void'(expr)` as a
+  statement
+- `for (int/genvar i = 0; ...; i++)`, `do`/`while`, post/pre
+  increment, compound assignments
+- `inside` operator, `bus[i].field` member access on selects
+- Inline `module foo import pkg::*; #(...)` headers
+- DPI export `export "DPI-C" function name;`
 
 **Out of scope (deliberately):**
 - AST construction. Every bison action body is `{ }`.
 - Compiler directives (`` `define ``, `` `include ``, `` `ifdef ``, ...).
-  These are not part of the formal grammar — they belong to a
-  preprocessor pass we do not yet have. The lexer recognizes a
-  backtick-prefixed line and skips to end-of-line for now.
-- Macro expansion.
-- SystemVerilog constructs (classes, interfaces, `always_ff`, `logic`,
-  assertions, ...).
+  These are handled by the preprocessor pass; the lexer sees only
+  post-preprocessing input.
+- SV classes (`class`/`endclass`, `extends`, `new`, `this`, `super`),
+  randomization (`rand`/`randc`/`randomize`), constraints
+  (`constraint`/`solve`/`with`), covergroups
+  (`covergroup`/`coverpoint`/`bins`/`cross`), properties/sequences/
+  `assert property`, clocking blocks, full `interface` bodies with
+  `modport`s used as port types. Ibex's macro-based `` `ASSERT* ``
+  calls vanish through an empty `prim_assert.sv` stub; the real
+  expansions are SV property syntax this parser does not accept.
 
 ## 2. Grammar sourcing
 

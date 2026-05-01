@@ -1,6 +1,21 @@
 // Verilog-2001 (IEEE 1364-2005) parser, transcribed from Annex A.
 // Recognizer-only: every semantic action body is empty. An AST will
 // land in a follow-up.
+//
+// SystemVerilog (IEEE 1800) — pragmatic subset.
+// The grammar accepts a useful slice of SV beyond plain Verilog-2001:
+// `package`/`endpackage`, `import`, `typedef` (enum/struct/vector),
+// `logic`/`bit`/`int`/... data types, ANSI port lists with typed
+// directions, `parameter int unsigned X = ...` and `parameter type T`,
+// `always_ff`/`always_comb`/`always_latch`, `unique`/`priority` case,
+// scope resolution (`pkg::id`), unsized untyped literals
+// (`'0`/`'1`/`'x`/`'z`), assignment patterns (`'{...}`), the cast
+// operator `<size_or_type>'(expr)`, post-increment/decrement,
+// inline `int` declarations in `for` headers, and unpacked
+// dimensions on variable declarations.
+// SV constructs deliberately out of scope: classes, interfaces with
+// modports, randomization, assertions/properties/sequences,
+// constraints, virtual interfaces.
 
 %language "c++"
 %skeleton "lalr1.cc"
@@ -83,38 +98,71 @@
 %token POLYARROW    "*>"
 %token PLUS_COLON   "+:"
 %token MINUS_COLON  "-:"
+%token DCOLON       "::"
+%token INC          "++"
+%token DEC          "--"
+%token PLUS_EQ      "+="
+%token MINUS_EQ     "-="
+%token STAR_EQ      "*="
+%token SLASH_EQ     "/="
+%token PERCENT_EQ   "%="
+%token AMP_EQ       "&="
+%token PIPE_EQ      "|="
+%token CARET_EQ     "^="
+%token LSHIFT_EQ    "<<="
+%token RSHIFT_EQ    ">>="
+%token LSHIFTA_EQ   "<<<="
+%token RSHIFTA_EQ   ">>>="
+%token APOST_LBRACE "'{"
+%token APOST_LPAREN "'("
 
 // ============================================================
 // Keywords (alphabetical)
 // ============================================================
 %token K_ALWAYS         "always"
+%token K_ALWAYS_COMB    "always_comb"
+%token K_ALWAYS_FF      "always_ff"
+%token K_ALWAYS_LATCH   "always_latch"
 %token K_AND            "and"
 %token K_ASSIGN         "assign"
 %token K_AUTOMATIC      "automatic"
 %token K_BEGIN          "begin"
+%token K_BIT            "bit"
+%token K_BREAK          "break"
 %token K_BUF            "buf"
 %token K_BUFIF0         "bufif0"
 %token K_BUFIF1         "bufif1"
+%token K_BYTE           "byte"
 %token K_CASE           "case"
 %token K_CASEX          "casex"
 %token K_CASEZ          "casez"
+%token K_CHANDLE        "chandle"
 %token K_CMOS           "cmos"
+%token K_CONST          "const"
+%token K_CONTINUE       "continue"
 %token K_DEASSIGN       "deassign"
 %token K_DEFAULT        "default"
 %token K_DEFPARAM       "defparam"
 %token K_DISABLE        "disable"
+%token K_DO             "do"
 %token K_EDGE           "edge"
 %token K_ELSE           "else"
 %token K_END            "end"
 %token K_ENDCASE        "endcase"
 %token K_ENDFUNCTION    "endfunction"
 %token K_ENDGENERATE    "endgenerate"
+%token K_ENDINTERFACE   "endinterface"
 %token K_ENDMODULE      "endmodule"
+%token K_ENDPACKAGE     "endpackage"
 %token K_ENDPRIMITIVE   "endprimitive"
 %token K_ENDSPECIFY     "endspecify"
 %token K_ENDTABLE       "endtable"
 %token K_ENDTASK        "endtask"
+%token K_ENUM           "enum"
 %token K_EVENT          "event"
+%token K_EXPORT         "export"
+%token K_EXTERN         "extern"
+%token K_FINAL          "final"
 %token K_FOR            "for"
 %token K_FORCE          "force"
 %token K_FOREVER        "forever"
@@ -125,16 +173,25 @@
 %token K_HIGHZ0         "highz0"
 %token K_HIGHZ1         "highz1"
 %token K_IF             "if"
+%token K_IFF            "iff"
 %token K_IFNONE         "ifnone"
+%token K_IMPORT         "import"
 %token K_INITIAL        "initial"
 %token K_INOUT          "inout"
 %token K_INPUT          "input"
+%token K_INSIDE         "inside"
+%token K_INT            "int"
 %token K_INTEGER        "integer"
+%token K_INTERFACE      "interface"
 %token K_JOIN           "join"
 %token K_LARGE          "large"
+%token K_LOCAL          "local"
 %token K_LOCALPARAM     "localparam"
+%token K_LOGIC          "logic"
+%token K_LONGINT        "longint"
 %token K_MACROMODULE    "macromodule"
 %token K_MEDIUM         "medium"
+%token K_MODPORT        "modport"
 %token K_MODULE         "module"
 %token K_NAND           "nand"
 %token K_NEGEDGE        "negedge"
@@ -143,12 +200,18 @@
 %token K_NOT            "not"
 %token K_NOTIF0         "notif0"
 %token K_NOTIF1         "notif1"
+%token K_NULL           "null"
 %token K_OR             "or"
 %token K_OUTPUT         "output"
+%token K_PACKAGE        "package"
+%token K_PACKED         "packed"
 %token K_PARAMETER      "parameter"
 %token K_PMOS           "pmos"
 %token K_POSEDGE        "posedge"
 %token K_PRIMITIVE      "primitive"
+%token K_PRIORITY       "priority"
+%token K_PROTECTED      "protected"
+%token K_PURE           "pure"
 %token K_PULL0          "pull0"
 %token K_PULL1          "pull1"
 %token K_PULLDOWN       "pulldown"
@@ -159,18 +222,23 @@
 %token K_REG            "reg"
 %token K_RELEASE        "release"
 %token K_REPEAT         "repeat"
+%token K_RETURN         "return"
 %token K_RNMOS          "rnmos"
 %token K_RPMOS          "rpmos"
 %token K_RTRAN          "rtran"
 %token K_RTRANIF0       "rtranif0"
 %token K_RTRANIF1       "rtranif1"
 %token K_SCALARED       "scalared"
+%token K_SHORTINT       "shortint"
 %token K_SIGNED         "signed"
 %token K_SMALL          "small"
 %token K_SPECIFY        "specify"
 %token K_SPECPARAM      "specparam"
+%token K_STATIC         "static"
+%token K_STRING         "string"
 %token K_STRONG0        "strong0"
 %token K_STRONG1        "strong1"
+%token K_STRUCT         "struct"
 %token K_SUPPLY0        "supply0"
 %token K_SUPPLY1        "supply1"
 %token K_TABLE          "table"
@@ -185,9 +253,17 @@
 %token K_TRIAND         "triand"
 %token K_TRIOR          "trior"
 %token K_TRIREG         "trireg"
+%token K_TYPE           "type"
+%token K_TYPEDEF        "typedef"
+%token K_UNION          "union"
+%token K_UNIQUE         "unique"
+%token K_UNIQUE0        "unique0"
 %token K_UNSIGNED       "unsigned"
 %token K_UWIRE          "uwire"
+%token K_VAR            "var"
 %token K_VECTORED       "vectored"
+%token K_VIRTUAL        "virtual"
+%token K_VOID           "void"
 %token K_WAIT           "wait"
 %token K_WAND           "wand"
 %token K_WEAK0          "weak0"
@@ -207,6 +283,7 @@
 %token <std::string> IDENTIFIER
 %token <std::string> SYSTEM_ID
 %token <std::string> MACRO_REF
+%token <std::string> SCOPED_NAME_HEAD    "<ident>::"
 
 // ============================================================
 // Precedence (lowest to highest)
@@ -240,14 +317,253 @@ source_text
 
 description
     : module_declaration                  { }
+    | package_declaration                 { }
+    | interface_declaration               { }
+    | sv_typedef_declaration              { }
+    | sv_package_import_declaration       { }
+    ;
+
+// ============================================================
+// SystemVerilog package
+// ============================================================
+package_declaration
+    : K_PACKAGE opt_lifetime IDENTIFIER SEMI
+        package_item_list_opt K_ENDPACKAGE opt_endlabel             { }
+    ;
+
+opt_lifetime
+    : %empty                                                        { }
+    | K_STATIC                                                      { }
+    | K_AUTOMATIC                                                   { }
+    ;
+
+opt_endlabel
+    : %empty                                                        { }
+    | COLON IDENTIFIER                                              { }
+    ;
+
+package_item_list_opt
+    : %empty                                                        { }
+    | package_item_list                                             { }
+    ;
+
+package_item_list
+    : package_item                                                  { }
+    | package_item_list package_item                                { }
+    ;
+
+package_item
+    : parameter_declaration                                         { }
+    | localparam_declaration                                        { }
+    | sv_typedef_declaration                                        { }
+    | function_declaration                                          { }
+    | task_declaration                                              { }
+    | net_declaration                                               { }
+    | reg_declaration                                               { }
+    | sv_data_declaration                                           { }
+    | sv_package_import_declaration                                 { }
+    ;
+
+// ============================================================
+// SystemVerilog interface (accepted as a module-shaped container)
+// ============================================================
+interface_declaration
+    : K_INTERFACE IDENTIFIER opt_module_parameter_port_list
+        opt_list_of_ports SEMI module_item_list_opt
+        K_ENDINTERFACE opt_endlabel                                 { }
+    ;
+
+// ============================================================
+// SV package import / export
+// ============================================================
+sv_package_import_declaration
+    : K_IMPORT package_import_item_list SEMI                        { }
+    | K_EXPORT package_import_item_list SEMI                        { }
+    ;
+
+package_import_item_list
+    : package_import_item                                           { }
+    | package_import_item_list COMMA package_import_item            { }
+    ;
+
+package_import_item
+    : SCOPED_NAME_HEAD STAR                                         { }
+    | SCOPED_NAME_HEAD IDENTIFIER                                   { }
+    ;
+
+// ============================================================
+// SV typedef and data types
+// ============================================================
+sv_typedef_declaration
+    : K_TYPEDEF data_type_or_user IDENTIFIER opt_unpacked_dim_list SEMI { }
+    | K_TYPEDEF IDENTIFIER SEMI                                     { }
+    ;
+
+// Keyword-prefixed data types. Anything starting with an IDENTIFIER
+// (whether `pkg::T` or unscoped `mytype`) is intentionally NOT here:
+// at module-item / block-item level an IDENTIFIER also begins a
+// statement, a module instantiation, or a procedural assignment, so
+// allowing it as `data_type` produces LALR(1) shift-reduce conflicts
+// the parser resolves by waiting for tokens that never come (e.g.
+// shifting `IDENTIFIER` expecting `::` and then failing on `<=`).
+// User-defined types are accepted only via `data_type_or_user` in
+// contexts that are syntactically locked (typedef body, struct or
+// union member) where the surrounding rule disambiguates.
+data_type
+    : integer_atom_type opt_signedness                              { }
+    | integer_vector_type opt_signedness opt_packed_dim_list        { }
+    | non_integer_type                                              { }
+    | K_STRUCT opt_packed opt_signedness LBRACE struct_member_list RBRACE
+        opt_packed_dim_list                                         { }
+    | K_UNION opt_packed opt_signedness LBRACE struct_member_list RBRACE
+        opt_packed_dim_list                                         { }
+    | K_ENUM opt_enum_base LBRACE enum_member_list RBRACE
+        opt_packed_dim_list                                         { }
+    | K_STRING                                                      { }
+    | K_CHANDLE                                                     { }
+    | K_EVENT                                                       { }
+    | K_VIRTUAL K_INTERFACE IDENTIFIER                              { }
+    ;
+
+data_type_or_user
+    : data_type                                                     { }
+    | IDENTIFIER opt_packed_dim_list                                { }
+    | SCOPED_NAME_HEAD IDENTIFIER opt_packed_dim_list               { }
+    ;
+
+integer_atom_type
+    : K_BYTE                                                        { }
+    | K_SHORTINT                                                    { }
+    | K_INT                                                         { }
+    | K_LONGINT                                                     { }
+    | K_INTEGER                                                     { }
+    | K_TIME                                                        { }
+    ;
+
+integer_vector_type
+    : K_BIT                                                         { }
+    | K_LOGIC                                                       { }
+    | K_REG                                                         { }
+    ;
+
+non_integer_type
+    : K_REAL                                                        { }
+    | K_REALTIME                                                    { }
+    | K_SHORTINT                                                    { }
+    ;
+
+opt_packed
+    : %empty                                                        { }
+    | K_PACKED                                                      { }
+    ;
+
+opt_signedness
+    : %empty                                                        { }
+    | K_SIGNED                                                      { }
+    | K_UNSIGNED                                                    { }
+    ;
+
+opt_packed_dim_list
+    : %empty                                                        { }
+    | packed_dim_list                                               { }
+    ;
+
+packed_dim_list
+    : packed_dim                                                    { }
+    | packed_dim_list packed_dim                                    { }
+    ;
+
+packed_dim
+    : range                                                         { }
+    ;
+
+opt_unpacked_dim_list
+    : %empty                                                        { }
+    | unpacked_dim_list                                             { }
+    ;
+
+unpacked_dim_list
+    : unpacked_dim                                                  { }
+    | unpacked_dim_list unpacked_dim                                { }
+    ;
+
+unpacked_dim
+    : LBRACK expression RBRACK                                      { }
+    | LBRACK expression COLON expression RBRACK                     { }
+    ;
+
+
+opt_enum_base
+    : %empty                                                        { }
+    | integer_atom_type opt_signedness                              { }
+    | integer_vector_type opt_signedness opt_packed_dim_list        { }
+    ;
+
+enum_member_list
+    : enum_member                                                   { }
+    | enum_member_list COMMA enum_member                            { }
+    ;
+
+enum_member
+    : IDENTIFIER                                                    { }
+    | IDENTIFIER ASSIGN expression                                  { }
+    | IDENTIFIER LBRACK expression RBRACK                           { }
+    | IDENTIFIER LBRACK expression COLON expression RBRACK          { }
+    | IDENTIFIER LBRACK expression RBRACK ASSIGN expression         { }
+    ;
+
+struct_member_list
+    : struct_member                                                 { }
+    | struct_member_list struct_member                              { }
+    ;
+
+struct_member
+    : data_type_or_user identifier_list SEMI                        { }
+    ;
+
+// ============================================================
+// SV data declaration: `logic [W-1:0] x;`, `int x = 0;`, etc.
+// ============================================================
+sv_data_declaration
+    : opt_const opt_var_lifetime data_type list_of_var_decl_assignments SEMI  { }
+    | K_VAR opt_var_lifetime data_type_or_implicit
+        list_of_var_decl_assignments SEMI                           { }
+    ;
+
+opt_const
+    : %empty                                                        { }
+    | K_CONST                                                       { }
+    ;
+
+opt_var_lifetime
+    : %empty                                                        { }
+    | K_STATIC                                                      { }
+    | K_AUTOMATIC                                                   { }
+    ;
+
+data_type_or_implicit
+    : data_type                                                     { }
+    | opt_signedness opt_packed_dim_list                            { }
     ;
 
 // ============================================================
 // Module declaration
 // ============================================================
 module_declaration
-    : module_keyword IDENTIFIER opt_module_parameter_port_list
-        opt_list_of_ports SEMI module_item_list_opt K_ENDMODULE   { }
+    : module_keyword IDENTIFIER opt_module_imports
+        opt_module_parameter_port_list
+        opt_list_of_ports SEMI module_item_list_opt
+        K_ENDMODULE opt_endlabel                                { }
+    ;
+
+opt_module_imports
+    : %empty                                                    { }
+    | module_imports                                            { }
+    ;
+
+module_imports
+    : sv_package_import_declaration                             { }
+    | module_imports sv_package_import_declaration              { }
     ;
 
 module_keyword
@@ -265,9 +581,45 @@ module_parameter_port_decls
     | module_parameter_port_decls COMMA module_parameter_port_decl { }
     ;
 
+// Module-port parameter declaration. The IDENTIFIER alternative
+// disambiguates an unscoped user-type prefix (`parameter foo_t X =
+// ...`) from a bare parameter (`parameter X = ...`) by deferring the
+// decision to `mp_after_param_ident`, which inspects the token after
+// the first IDENTIFIER: ASSIGN means bare, another IDENTIFIER means
+// type-then-name.
 module_parameter_port_decl
     : K_PARAMETER opt_param_type_or_range param_assignment        { }
+    | K_PARAMETER sv_param_data_type param_assignment             { }
+    | K_PARAMETER K_TYPE param_type_assignment                    { }
+    | K_PARAMETER IDENTIFIER mp_after_param_ident                 { }
+    | sv_param_data_type param_assignment                         { }
     | param_assignment                                            { }
+    ;
+
+mp_after_param_ident
+    : opt_unpacked_dim_list ASSIGN expression                     { }
+    | opt_packed_dim_list IDENTIFIER opt_unpacked_dim_list
+        ASSIGN expression                                         { }
+    ;
+
+sv_param_data_type
+    : K_LOGIC opt_signedness opt_packed_dim_list                  { }
+    | K_BIT opt_signedness opt_packed_dim_list                    { }
+    | K_BYTE opt_signedness                                       { }
+    | K_INT opt_signedness                                        { }
+    | K_LONGINT opt_signedness                                    { }
+    | K_SHORTINT opt_signedness                                   { }
+    | K_INTEGER opt_signedness                                    { }
+    | K_TIME                                                      { }
+    | K_REAL                                                      { }
+    | K_REALTIME                                                  { }
+    | K_STRING                                                    { }
+    | SCOPED_NAME_HEAD IDENTIFIER opt_packed_dim_list             { }
+    ;
+
+param_type_assignment
+    : IDENTIFIER ASSIGN data_type                                 { }
+    | IDENTIFIER                                                  { }
     ;
 
 opt_list_of_ports
@@ -281,11 +633,68 @@ port_list
     | port_list COMMA port_item           { }
     ;
 
+// `port_item` accepts the four major shapes:
+//   1. port_reference_or_named (no direction): `a`, `a[3:0]`, `.x(y)`
+//   2. port_direction + classic Verilog: `input wire [n:0] x`,
+//      `output reg signed x`, etc.
+//   3. port_direction + SV keyword type: `input logic [n:0] x`.
+//   4. port_direction + IDENTIFIER prefix: `input x` (port name only)
+//      or `output crash_dump_t crash_dump_o` (unscoped user type
+//      then name). Disambiguated via `port_after_dir_ident_tail`.
 port_item
     : port_reference_or_named             { }
-    | port_direction opt_net_or_reg opt_signed opt_range IDENTIFIER  { }
-    | port_direction opt_net_or_reg opt_signed opt_range IDENTIFIER
+    | port_direction port_typed_classic_form                        { }
+    | port_direction sv_port_data_type IDENTIFIER opt_unpacked_dim_list { }
+    | port_direction sv_port_data_type IDENTIFIER opt_unpacked_dim_list
         ASSIGN expression                                            { }
+    | port_direction IDENTIFIER port_after_dir_ident_tail           { }
+    ;
+
+// Classic Verilog-2001 typed forms — start with a net_type, K_REG,
+// K_SIGNED, or a `range`. Empty form is intentionally NOT here; it
+// is handled via the IDENTIFIER alternative of `port_item`.
+port_typed_classic_form
+    : net_type opt_signed opt_range IDENTIFIER opt_port_init        { }
+    | K_REG opt_signed opt_range IDENTIFIER opt_port_init           { }
+    | K_SIGNED opt_range IDENTIFIER opt_port_init                   { }
+    | range IDENTIFIER opt_port_init                                { }
+    ;
+
+opt_port_init
+    : %empty                                                        { }
+    | ASSIGN expression                                             { }
+    ;
+
+// What follows `port_direction IDENTIFIER`. If the next token is
+// `,` `)` `=` or `[`-then-port-end, the IDENTIFIER was the port
+// name. If the next token is another IDENTIFIER (or `[` followed by
+// dims and then an IDENTIFIER), the first IDENTIFIER was an
+// unscoped user type and the next is the port name.
+port_after_dir_ident_tail
+    : opt_unpacked_dim_list opt_port_init                           { }
+    | opt_packed_dim_list IDENTIFIER opt_unpacked_dim_list
+        opt_port_init                                               { }
+    ;
+
+// SV port data types — keyword-prefixed only. The classic
+// `port_direction opt_net_or_reg opt_signed opt_range IDENTIFIER`
+// alternative above already covers `input wire/reg ...` and
+// `input <ident>` (port name only). Adding an `IDENTIFIER DCOLON
+// IDENTIFIER` alternative here would create a reduce-reduce conflict
+// against the old rule (parser cannot tell whether the trailing
+// IDENTIFIER is the port name or the start of a scoped type) and
+// regresses Verilog-2001 inputs.
+sv_port_data_type
+    : K_LOGIC opt_signedness opt_packed_dim_list                    { }
+    | K_BIT opt_signedness opt_packed_dim_list                      { }
+    | K_BYTE opt_signedness                                         { }
+    | K_INT opt_signedness                                          { }
+    | K_LONGINT opt_signedness                                      { }
+    | K_SHORTINT opt_signedness                                     { }
+    | K_REAL                                                        { }
+    | K_REALTIME                                                    { }
+    | K_STRING                                                      { }
+    | SCOPED_NAME_HEAD IDENTIFIER opt_packed_dim_list               { }
     ;
 
 port_reference_or_named
@@ -385,10 +794,25 @@ actual_module_item
     | continuous_assign                   { }
     | always_construct                    { }
     | initial_construct                   { }
+    | final_construct                     { }
     | function_declaration                { }
     | task_declaration                    { }
     | generate_construct                  { }
     | defparam_statement                  { }
+    | sv_data_declaration                 { }
+    | sv_typedef_declaration              { }
+    | sv_package_import_declaration       { }
+    | system_task_enable                  { }
+    | dpi_export_declaration              { }
+    ;
+
+dpi_export_declaration
+    : K_EXPORT STRING_LITERAL K_FUNCTION IDENTIFIER SEMI            { }
+    | K_EXPORT STRING_LITERAL K_TASK IDENTIFIER SEMI                { }
+    ;
+
+final_construct
+    : K_FINAL statement                                             { }
     ;
 
 macro_decorations
@@ -407,8 +831,8 @@ conditional_generate_construct
     ;
 
 loop_generate_construct
-    : K_FOR LPAREN blocking_assignment SEMI expression SEMI
-            blocking_assignment RPAREN generate_block               { }
+    : K_FOR LPAREN for_init SEMI expression SEMI
+            for_step RPAREN generate_block                          { }
     ;
 
 case_generate_construct
@@ -433,8 +857,8 @@ generate_block_or_null
     ;
 
 generate_block
-    : K_BEGIN generate_block_items K_END                            { }
-    | K_BEGIN COLON IDENTIFIER generate_block_items K_END           { }
+    : K_BEGIN generate_block_items K_END opt_endlabel               { }
+    | K_BEGIN COLON IDENTIFIER generate_block_items K_END opt_endlabel { }
     | module_item                                                   { }
     ;
 
@@ -482,9 +906,8 @@ list_of_var_decl_assignments
     ;
 
 var_decl_assignment
-    : IDENTIFIER                                                  { }
-    | IDENTIFIER range                                            { }
-    | IDENTIFIER ASSIGN expression                                { }
+    : IDENTIFIER opt_unpacked_dim_list                            { }
+    | IDENTIFIER opt_unpacked_dim_list ASSIGN expression          { }
     ;
 
 integer_declaration
@@ -510,10 +933,36 @@ genvar_declaration
 
 parameter_declaration
     : K_PARAMETER opt_param_type_or_range param_assignments SEMI  { }
+    | K_PARAMETER sv_param_data_type param_assignments SEMI       { }
+    | K_PARAMETER K_TYPE param_type_assignments SEMI              { }
+    | K_PARAMETER IDENTIFIER pdecl_after_param_ident SEMI         { }
     ;
 
 localparam_declaration
     : K_LOCALPARAM opt_param_type_or_range param_assignments SEMI { }
+    | K_LOCALPARAM sv_param_data_type param_assignments SEMI      { }
+    | K_LOCALPARAM K_TYPE param_type_assignments SEMI             { }
+    | K_LOCALPARAM IDENTIFIER pdecl_after_param_ident SEMI        { }
+    ;
+
+// Same disambiguation pattern as `mp_after_param_ident` but for
+// statement-level parameter/localparam declarations, which take a
+// comma-separated list of assignments rather than just one.
+pdecl_after_param_ident
+    : opt_unpacked_dim_list ASSIGN expression
+        pdecl_more_param_assignments                              { }
+    | opt_packed_dim_list IDENTIFIER opt_unpacked_dim_list
+        ASSIGN expression pdecl_more_param_assignments            { }
+    ;
+
+pdecl_more_param_assignments
+    : %empty                                                      { }
+    | pdecl_more_param_assignments COMMA param_assignment         { }
+    ;
+
+param_type_assignments
+    : param_type_assignment                                       { }
+    | param_type_assignments COMMA param_type_assignment          { }
     ;
 
 opt_param_type_or_range
@@ -533,7 +982,7 @@ param_assignments
     ;
 
 param_assignment
-    : IDENTIFIER ASSIGN expression                      { }
+    : IDENTIFIER opt_unpacked_dim_list ASSIGN expression { }
     ;
 
 identifier_list
@@ -575,6 +1024,9 @@ net_assignment
 // ============================================================
 always_construct
     : K_ALWAYS statement                                { }
+    | K_ALWAYS_FF statement                             { }
+    | K_ALWAYS_COMB statement                           { }
+    | K_ALWAYS_LATCH statement                          { }
     ;
 
 initial_construct
@@ -590,12 +1042,16 @@ generate_construct
 // ============================================================
 function_declaration
     : K_FUNCTION opt_automatic opt_function_range_or_type
-        IDENTIFIER SEMI function_item_decls statement_or_null
-        K_ENDFUNCTION                                   { }
+        IDENTIFIER SEMI function_item_decls statement_list_opt
+        K_ENDFUNCTION opt_endlabel                      { }
     | K_FUNCTION opt_automatic opt_function_range_or_type
         IDENTIFIER LPAREN tf_port_list RPAREN SEMI
-        function_item_decls_opt statement_or_null
-        K_ENDFUNCTION                                   { }
+        function_item_decls_opt statement_list_opt
+        K_ENDFUNCTION opt_endlabel                      { }
+    | K_FUNCTION opt_automatic opt_function_range_or_type
+        IDENTIFIER LPAREN RPAREN SEMI
+        function_item_decls_opt statement_list_opt
+        K_ENDFUNCTION opt_endlabel                      { }
     ;
 
 opt_automatic
@@ -611,6 +1067,8 @@ opt_function_range_or_type
     | K_TIME                                            { }
     | opt_signed range                                  { }
     | K_SIGNED                                          { }
+    | sv_param_data_type                                { }
+    | K_VOID                                            { }
     ;
 
 function_item_decls_opt
@@ -632,15 +1090,17 @@ function_item_decl
     | event_declaration                                 { }
     | parameter_declaration                             { }
     | localparam_declaration                            { }
+    | sv_data_declaration                               { }
+    | sv_typedef_declaration                            { }
     ;
 
 task_declaration
     : K_TASK opt_automatic IDENTIFIER SEMI
-        task_item_decls_opt statement_or_null K_ENDTASK { }
+        task_item_decls_opt statement_list_opt K_ENDTASK opt_endlabel { }
     | K_TASK opt_automatic IDENTIFIER LPAREN tf_port_list RPAREN
-        SEMI task_item_decls_opt statement_or_null K_ENDTASK  { }
+        SEMI task_item_decls_opt statement_list_opt K_ENDTASK opt_endlabel { }
     | K_TASK opt_automatic IDENTIFIER LPAREN RPAREN
-        SEMI task_item_decls_opt statement_or_null K_ENDTASK  { }
+        SEMI task_item_decls_opt statement_list_opt K_ENDTASK opt_endlabel { }
     ;
 
 task_item_decls_opt
@@ -662,6 +1122,8 @@ task_item_decl
     | event_declaration                                 { }
     | parameter_declaration                             { }
     | localparam_declaration                            { }
+    | sv_data_declaration                               { }
+    | sv_typedef_declaration                            { }
     ;
 
 tf_port_list
@@ -673,19 +1135,46 @@ tf_port_decl
     : port_direction opt_net_or_reg opt_signed opt_range IDENTIFIER  { }
     | port_direction opt_net_or_reg opt_signed opt_range IDENTIFIER
         ASSIGN expression                                            { }
+    | port_direction sv_port_data_type IDENTIFIER opt_unpacked_dim_list  { }
+    | port_direction sv_port_data_type IDENTIFIER opt_unpacked_dim_list
+        ASSIGN expression                                            { }
+    | sv_port_data_type IDENTIFIER opt_unpacked_dim_list             { }
+    | sv_port_data_type IDENTIFIER opt_unpacked_dim_list ASSIGN expression { }
     ;
 
 // ============================================================
 // Module / gate instantiation
 // ============================================================
+// `IDENT inst (...);`, `IDENT #(...) inst (...);`, and the SV
+// user-type variable declaration `IDENT var;` / `IDENT var = init;`
+// share the same `IDENT IDENT ...` prefix. They cannot be split into
+// separate rules without LALR(1) reduce-reduce conflicts (the
+// classic Verilog-vs-SV ambiguity); we fold them into one
+// `inst_or_var_list` rule and let the parser choose per-element
+// based on the next token: `(` → instance, `,`/`;`/`=`/`[` → var.
 gate_or_module_instantiation
     : module_or_udp_instantiation                       { }
     | gate_instantiation                                { }
     ;
 
 module_or_udp_instantiation
-    : IDENTIFIER opt_param_value_assignment instance_list SEMI  { }
-    | MACRO_REF  opt_param_value_assignment instance_list SEMI  { }
+    : IDENTIFIER opt_param_value_assignment opt_packed_dim_list
+        inst_or_var_list SEMI                                      { }
+    | SCOPED_NAME_HEAD IDENTIFIER opt_param_value_assignment
+        opt_packed_dim_list inst_or_var_list SEMI                  { }
+    | MACRO_REF  opt_param_value_assignment inst_or_var_list SEMI  { }
+    ;
+
+inst_or_var_list
+    : inst_or_var                                       { }
+    | inst_or_var_list COMMA inst_or_var                { }
+    ;
+
+inst_or_var
+    : IDENTIFIER LPAREN port_connections_opt RPAREN     { }
+    | IDENTIFIER range LPAREN port_connections_opt RPAREN { }
+    | IDENTIFIER opt_unpacked_dim_list                  { }
+    | IDENTIFIER opt_unpacked_dim_list ASSIGN expression { }
     ;
 
 opt_param_value_assignment
@@ -797,11 +1286,43 @@ statement
     | disable_statement                                 { }
     | event_control statement_or_null                   { }
     | delay_control statement_or_null                   { }
+    | jump_statement                                    { }
+    | inc_or_dec_expression SEMI                        { }
+    | void_call_statement                               { }
+    ;
+
+// `void'(tf_call)` used as a statement to discard a function's
+// return value (Ibex's tracer does this with `$value$plusargs`).
+void_call_statement
+    : K_VOID APOST_LPAREN expression RPAREN SEMI                        { }
+    ;
+
+jump_statement
+    : K_RETURN SEMI                                     { }
+    | K_RETURN expression SEMI                          { }
+    | K_BREAK SEMI                                      { }
+    | K_CONTINUE SEMI                                   { }
     ;
 
 blocking_assignment
     : variable_lvalue ASSIGN expression                                 { }
     | variable_lvalue ASSIGN delay_or_event_control expression          { }
+    | variable_lvalue compound_assign_op expression                     { }
+    ;
+
+compound_assign_op
+    : PLUS_EQ                                                           { }
+    | MINUS_EQ                                                          { }
+    | STAR_EQ                                                           { }
+    | SLASH_EQ                                                          { }
+    | PERCENT_EQ                                                        { }
+    | AMP_EQ                                                            { }
+    | PIPE_EQ                                                           { }
+    | CARET_EQ                                                          { }
+    | LSHIFT_EQ                                                         { }
+    | RSHIFT_EQ                                                         { }
+    | LSHIFTA_EQ                                                        { }
+    | RSHIFTA_EQ                                                        { }
     ;
 
 nonblocking_assignment
@@ -822,6 +1343,7 @@ variable_lvalue_list
 hierarchical_identifier
     : IDENTIFIER                                                        { }
     | hierarchical_identifier DOT IDENTIFIER                            { }
+    | SCOPED_NAME_HEAD IDENTIFIER                                       { }
     ;
 
 hierarchical_identifier_with_select
@@ -830,15 +1352,25 @@ hierarchical_identifier_with_select
     | hierarchical_identifier_with_select LBRACK expression COLON expression RBRACK         { }
     | hierarchical_identifier_with_select LBRACK expression PLUS_COLON expression RBRACK    { }
     | hierarchical_identifier_with_select LBRACK expression MINUS_COLON expression RBRACK   { }
+    | hierarchical_identifier_with_select DOT IDENTIFIER                { }
     ;
 
 conditional_statement
     : K_IF LPAREN expression RPAREN statement_or_null %prec IF_NO_ELSE        { }
     | K_IF LPAREN expression RPAREN statement_or_null K_ELSE statement_or_null { }
+    | case_priority K_IF LPAREN expression RPAREN statement_or_null %prec IF_NO_ELSE { }
+    | case_priority K_IF LPAREN expression RPAREN statement_or_null K_ELSE statement_or_null { }
     ;
 
 case_statement
     : case_keyword LPAREN expression RPAREN case_items K_ENDCASE        { }
+    | case_priority case_keyword LPAREN expression RPAREN case_items K_ENDCASE { }
+    ;
+
+case_priority
+    : K_UNIQUE                                                          { }
+    | K_UNIQUE0                                                         { }
+    | K_PRIORITY                                                        { }
     ;
 
 case_keyword
@@ -862,14 +1394,33 @@ loop_statement
     : K_FOREVER statement                                               { }
     | K_REPEAT LPAREN expression RPAREN statement                       { }
     | K_WHILE LPAREN expression RPAREN statement                        { }
-    | K_FOR LPAREN blocking_assignment SEMI expression SEMI
-            blocking_assignment RPAREN statement                        { }
+    | K_FOR LPAREN for_init SEMI expression SEMI
+            for_step RPAREN statement                                   { }
+    | K_DO statement K_WHILE LPAREN expression RPAREN SEMI              { }
+    ;
+
+for_init
+    : blocking_assignment                                               { }
+    | data_type IDENTIFIER ASSIGN expression                            { }
+    | K_GENVAR IDENTIFIER ASSIGN expression                             { }
+    ;
+
+for_step
+    : blocking_assignment                                               { }
+    | inc_or_dec_expression                                             { }
+    ;
+
+inc_or_dec_expression
+    : variable_lvalue INC                                               { }
+    | variable_lvalue DEC                                               { }
+    | INC variable_lvalue                                               { }
+    | DEC variable_lvalue                                               { }
     ;
 
 sequential_block
-    : K_BEGIN block_item_decls_opt statement_list_opt K_END             { }
+    : K_BEGIN block_item_decls_opt statement_list_opt K_END opt_endlabel { }
     | K_BEGIN COLON IDENTIFIER block_item_decls_opt
-        statement_list_opt K_END                                        { }
+        statement_list_opt K_END opt_endlabel                           { }
     ;
 
 block_item_decls_opt
@@ -890,6 +1441,8 @@ block_item_decl
     | event_declaration                                                 { }
     | parameter_declaration                                             { }
     | localparam_declaration                                            { }
+    | sv_data_declaration                                               { }
+    | sv_typedef_declaration                                            { }
     ;
 
 system_task_enable
@@ -996,6 +1549,17 @@ expression
     | expression LSHIFTA expression                                     { }
     | expression RSHIFTA expression                                     { }
     | expression QUESTION expression COLON expression                   { }
+    | expression K_INSIDE LBRACE inside_value_list RBRACE               { }
+    ;
+
+inside_value_list
+    : inside_value                                                      { }
+    | inside_value_list COMMA inside_value                              { }
+    ;
+
+inside_value
+    : expression                                                        { }
+    | LBRACK expression COLON expression RBRACK                         { }
     ;
 
 unary_op
@@ -1022,6 +1586,39 @@ primary
     | function_call                                                     { }
     | system_function_call                                              { }
     | MACRO_REF                                                         { }
+    | K_NULL                                                            { }
+    | sv_assignment_pattern                                             { }
+    | cast_expression                                                   { }
+    ;
+
+// SV assignment pattern: '{a, b}, '{key: val, ...}, '{default: val}.
+sv_assignment_pattern
+    : APOST_LBRACE assignment_pattern_items RBRACE                      { }
+    ;
+
+assignment_pattern_items
+    : assignment_pattern_item                                           { }
+    | assignment_pattern_items COMMA assignment_pattern_item            { }
+    ;
+
+assignment_pattern_item
+    : expression                                                        { }
+    | expression COLON expression                                       { }
+    | K_DEFAULT COLON expression                                        { }
+    ;
+
+// SV cast: <size_or_type>'(expr). The lexer emits APOST_LPAREN for
+// the `'(` so it doesn't get confused with a sized literal. The LHS
+// is restricted to a `primary` (number, paren-expr, identifier,
+// system call) — that covers Ibex's casts (`Width'(x)`,
+// `opcode_e'(x)`, `32'(x)`).
+cast_expression
+    : primary APOST_LPAREN expression RPAREN                            { }
+    | integer_atom_type APOST_LPAREN expression RPAREN                  { }
+    | integer_vector_type APOST_LPAREN expression RPAREN                { }
+    | K_SIGNED APOST_LPAREN expression RPAREN                           { }
+    | K_UNSIGNED APOST_LPAREN expression RPAREN                         { }
+    | K_VOID APOST_LPAREN expression RPAREN                             { }
     ;
 
 concatenation
@@ -1033,7 +1630,23 @@ multiple_concatenation
     ;
 
 function_call
-    : hierarchical_identifier LPAREN expression_list RPAREN             { }
+    : hierarchical_identifier LPAREN function_args RPAREN               { }
+    | hierarchical_identifier LPAREN RPAREN                             { }
+    ;
+
+function_args
+    : expression_list                                                   { }
+    | named_arg_list                                                    { }
+    ;
+
+named_arg_list
+    : named_arg                                                         { }
+    | named_arg_list COMMA named_arg                                    { }
+    ;
+
+named_arg
+    : DOT IDENTIFIER LPAREN RPAREN                                      { }
+    | DOT IDENTIFIER LPAREN expression RPAREN                           { }
     ;
 
 system_function_call

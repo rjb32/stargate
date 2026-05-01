@@ -26,6 +26,12 @@ Categories are split into:
 | Hard-coded absolute include path | 2 | iwls2005, ddr2_controller |
 | **Total** | **70** | |
 
+The lowRISC/ibex synthesizable rtl/ tree — 30 `.sv` files — parses
+end-to-end and is no longer counted here. That is the synthesizable
+core, not the full Ibex repository: the rest of the tree (vendored
+OpenTitan IP, UVM verification, formal harness) is described in
+"Ibex coverage" below.
+
 ---
 
 ## sgcparse limitations
@@ -126,6 +132,93 @@ dimension on a `wire`/`reg` declaration.
 mips_neelkshah:
 
 - `RegFile32.v`
+
+### SystemVerilog subset
+
+sgcparse now accepts a pragmatic SystemVerilog (IEEE 1800) subset on
+top of Verilog-2001 — enough to parse the synthesizable lowRISC/ibex
+rtl/ tree end-to-end. Specifically supported:
+
+- `package ... endpackage`, `import pkg::*;`, `import pkg::IDENT;`
+- `typedef` of struct/union/enum/vector and forward typedef
+- Data types: `logic`, `bit`, `byte`, `int`, `longint`, `shortint`,
+  `string`, `void`, plus `signed`/`unsigned` and packed dimensions
+- ANSI port lists with typed direction (`input logic [n:0] x`,
+  `output crash_dump_t y`, `output pkg::T z`)
+- Typed parameters: `parameter int unsigned X`, `parameter logic
+  [W-1:0] Y`, `parameter mytype Z`, `parameter pkg::T W`,
+  `parameter type T = ...`
+- `always_ff`, `always_comb`, `always_latch`
+- `unique`, `unique0`, `priority` on `case` and `if`
+- Scope resolution `pkg::T` and `pkg::CONST` in expressions
+- Unsized untyped literals `'0`, `'1`, `'x`, `'z`
+- Assignment patterns `'{a, b, c}`, `'{key: val, ...}`, `'{default:
+  ...}`
+- Casts `<size_or_type>'(expr)` including `void'(expr)` as a statement
+- `for (int i = 0; ...; i++)` and `for (genvar i = ...; ...; i++)`
+- Inline `int`/etc. declarations inside `for` headers
+- Post/pre `++` / `--` and compound assignments (`+=`, `-=`, `|=`, …)
+- `inside` operator: `expr inside { v1, [lo:hi], ... }`
+- Member access on selects: `bus[i].field`
+- Inline package import in module header: `module foo import pkg::*; #(...)`
+- DPI export: `export "DPI-C" function name;`
+- End-labels on `module`/`package`/`function`/`task`/`begin`
+- Unpacked dimensions on parameters and variables (`X[N]`)
+
+Out of scope (will not parse): classes, virtual interfaces, modports
+beyond the bare `interface ... endinterface` shell, randomization,
+constraints, properties/sequences, assertions (Ibex hides these
+behind macros which expand to nothing through the empty
+`prim_assert.sv` stub).
+
+SystemVerilog keywords are scoped to file extension. Files ending in
+`.sv` / `.svh` get the SV keyword set; `.v` / `.vh` files keep the
+Verilog-2001 keyword set so legacy sources that use names like
+`int`, `logic`, `bit`, `type`, `var`, `const`, `static`, `local`,
+`return`, `final`, `do`, `enum`, `struct`, `union`, `package`,
+`packed`, `import`, `export`, `null`, `inside`, `iff`, `unique`,
+`priority`, `interface`, `modport`, `virtual`, `pure`, or `void` as
+identifiers continue to parse.
+
+### Ibex coverage — what actually parses
+
+The Ibex regress (`regress/designs/ibex/`) parses only the
+synthesizable RTL — the 30 `.sv` files directly under `rtl/`. Even
+that has caveats, and the rest of the repository is mostly out of
+reach. Honest accounting against the pinned Ibex commit (644 total
+`.sv` / `.svh` files):
+
+| Subtree    | Files | Pass | Notes |
+| ---------- | ----: | ---: | --- |
+| `rtl/`     |    30 |   30 | What the regress exercises. Synthesizable core. |
+| `vendor/`  |   452 |  184 | OpenTitan `prim_*` IP and RISC-V tooling. ~40% — the rest needs class/property/sequence support. |
+| `dv/`      |   135 |    9 | UVM testbench: classes, randomization, constraints, covergroups — almost entirely out of scope. |
+| `formal/`  |    20 |    1 | Assertion-heavy. |
+| `shared/`  |     6 |    5 | |
+| `examples/`|     1 |    — | Not measured. |
+
+The 30/30 in `rtl/` also depends on three OpenTitan headers that the
+harness stubs to empty files: `prim_assert.sv`, `dv_fcov_macros.svh`,
+`formal_tb_frag.svh`. Their real contents define seven assertion
+macros (`` `ASSERT ``, `` `ASSERT_KNOWN ``, `` `ASSERT_INIT ``,
+`` `ASSERT_IF ``, `` `ASSERT_KNOWN_IF ``, `` `COVER ``,
+`` `ASSUME ``) that expand to SV `property` / `sequence` /
+`assert property` constructs — none of which the grammar accepts.
+Stubbing the includes makes every macro call site disappear, so the
+30 files parse but the full preprocessor + assertion bodies do not.
+
+What's still missing to push beyond `rtl/` (in roughly decreasing
+order of how many files each unlocks):
+- SV classes (`class`/`endclass`, `extends`, `new`, `this`, `super`)
+- Constraints (`constraint`/`solve`/`with`)
+- Randomization (`rand`/`randc`/`randomize()`/`pre_randomize`)
+- Covergroups (`covergroup`/`coverpoint`/`bins`/`cross`)
+- Properties / sequences / `assert property` / clocking blocks
+- `interface` bodies with `modport`s used as port types
+
+Lifting any of these would multiply the regress matrix and is
+beyond the current SV subset's stated scope (see
+`verilog/PLAN.md`).
 
 ---
 

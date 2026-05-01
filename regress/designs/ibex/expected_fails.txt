@@ -1,0 +1,14 @@
+# Files in lowRISC/ibex's rtl/ tree that sgcparse cannot parse.
+#
+# sgcparse accepts a SystemVerilog subset large enough to handle the
+# entire Ibex rtl/ tree (packages, ANSI ports with `logic`/`bit`/...,
+# typed parameters, `always_ff`/`always_comb`/`always_latch`,
+# typedef enum/struct, scope resolution `pkg::T`, assignment
+# patterns `'{...}`, casts `<type>'(expr)`, `unique`/`priority` case
+# and if, `for (genvar/int i = 0; ...; i++)`, compound assignments,
+# `inside`, member access on bit-selects, DPI export). Empty file
+# means every rtl/*.sv file in the pinned commit parses; the
+# harness still fails the test if a regression appears (any file
+# that parsed today stops parsing tomorrow).
+#
+# Paths are relative to the extracted ibex source root.
