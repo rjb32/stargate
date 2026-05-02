@@ -30,7 +30,6 @@ Stargate::Stargate(const StargateConfig& config)
 {
     _flowManager = std::make_unique<FlowManager>();
     _distribFlowManager = std::make_unique<DistribFlowManager>();
-    _defaultDistribConfig = std::make_unique<DistribConfig>();
 }
 
 Stargate::~Stargate() {
@@ -42,20 +41,7 @@ void Stargate::init() {
 }
 
 void Stargate::infraInit(const ProjectConfig* projectConfig, bool dryMode) {
-    if (!projectConfig->hasDistrib()) {
-        panic("No [distrib] section found in the project config");
-    }
-
-    const DistribConfig* distribConfig = projectConfig->getDistribConfig();
-    const std::string& flowName = distribConfig->getFlowName();
-    if (flowName.empty()) {
-        panic("The [distrib] section does not specify a 'flow'");
-    }
-
-    DistribFlow* flow = _distribFlowManager->getFlow(flowName);
-    if (!flow) {
-        panic("Unknown distrib flow '{}'", flowName);
-    }
+    setupDistrib(projectConfig);
 
     if (!dryMode) {
         const auto& stargateDir = _config.getStargateDir();
@@ -71,59 +57,47 @@ void Stargate::infraInit(const ProjectConfig* projectConfig, bool dryMode) {
         _distribFlowManager->setDistribDir(distribDir);
     }
 
-    flow->init(distribConfig, dryMode);
+    _distribFlow->init(_distribConfig, dryMode);
 }
 
 void Stargate::infraLs(const ProjectConfig* projectConfig) {
-    DistribFlow* flow = nullptr;
-    const DistribConfig* distribConfig = nullptr;
-    getDistribFlow(projectConfig, flow, distribConfig);
-    flow->ls(distribConfig);
+    setupDistrib(projectConfig);
+    _distribFlow->ls(_distribConfig);
 }
 
 void Stargate::infraStart(const ProjectConfig* projectConfig) {
-    DistribFlow* flow = nullptr;
-    const DistribConfig* distribConfig = nullptr;
-    getDistribFlow(projectConfig, flow, distribConfig);
-    flow->start(distribConfig);
+    setupDistrib(projectConfig);
+    _distribFlow->start(_distribConfig);
 }
 
 void Stargate::infraStop(const ProjectConfig* projectConfig) {
-    DistribFlow* flow = nullptr;
-    const DistribConfig* distribConfig = nullptr;
-    getDistribFlow(projectConfig, flow, distribConfig);
-    flow->stop(distribConfig);
+    setupDistrib(projectConfig);
+    _distribFlow->stop(_distribConfig);
 }
 
 void Stargate::infraDestroy(const ProjectConfig* projectConfig) {
-    DistribFlow* flow = nullptr;
-    const DistribConfig* distribConfig = nullptr;
-    getDistribFlow(projectConfig, flow, distribConfig);
-    flow->destroy(distribConfig);
+    setupDistrib(projectConfig);
+    _distribFlow->destroy(_distribConfig);
 }
 
 void Stargate::infraGui(const ProjectConfig* projectConfig, GUIAction action) {
-    DistribFlow* flow = nullptr;
-    const DistribConfig* distribConfig = nullptr;
-    getDistribFlow(projectConfig, flow, distribConfig);
-    flow->gui(distribConfig, action);
+    setupDistrib(projectConfig);
+    _distribFlow->gui(_distribConfig, action);
 }
 
-void Stargate::getDistribFlow(const ProjectConfig* projectConfig,
-                              DistribFlow*& flow,
-                              const DistribConfig*& distribConfig) {
-    if (!projectConfig->hasDistrib()) {
-        panic("No [distrib] section found in the project config");
+void Stargate::setupDistrib(const ProjectConfig* projectConfig) {
+    if (_distribConfig && _distribFlow) {
+        return;
     }
 
-    distribConfig = projectConfig->getDistribConfig();
-    const std::string& flowName = distribConfig->getFlowName();
+    _distribConfig = projectConfig->getDistribConfig();
+    const std::string& flowName = _distribConfig->getFlowName();
     if (flowName.empty()) {
         panic("The [distrib] section does not specify a 'flow'");
     }
 
-    flow = _distribFlowManager->getFlow(flowName);
-    if (!flow) {
+    _distribFlow = _distribFlowManager->getFlow(flowName);
+    if (!_distribFlow) {
         panic("Unknown distrib flow '{}'", flowName);
     }
 
@@ -267,14 +241,7 @@ void Stargate::executeTaskRange(const ProjectConfig* projectConfig,
 void Stargate::prepareExecution(const ProjectConfig* projConfig) {
     createOutputDir();
     writeTargets(projConfig);
-    setActiveDistribConfig(projConfig);
-}
-
-void Stargate::setActiveDistribConfig(const ProjectConfig* projConfig) {
-    const DistribConfig* config = projConfig->hasDistrib()
-        ? projConfig->getDistribConfig()
-        : _defaultDistribConfig.get();
-    _flowManager->setDistribConfig(config);
+    _flowManager->setDistribConfig(projConfig->getDistribConfig());
 }
 
 void Stargate::createOutputDir() {

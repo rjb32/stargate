@@ -1,9 +1,10 @@
 #pragma once
 
-#include <memory>
 #include <string>
 #include <map>
 #include <ranges>
+
+#include "DistribConfig.h"
 
 namespace toml {
 inline namespace v3 {
@@ -14,7 +15,6 @@ class table;
 
 namespace stargate {
 
-class DistribConfig;
 class FileSet;
 class ProjectTarget;
 
@@ -40,9 +40,7 @@ public:
 
     void setConfigPath(const std::string& configPath) { _configPath = configPath; }
 
-    bool hasDistrib() const { return _distribConfig != nullptr; }
-
-    const DistribConfig* getDistribConfig() const { return _distribConfig.get(); }
+    const DistribConfig* getDistribConfig() const { return &_distribConfig; }
 
     void readConfig();
 
@@ -51,7 +49,7 @@ private:
     std::string _configPath;
     std::map<std::string, FileSet*> _filesets;
     std::map<std::string, ProjectTarget*> _targets;
-    std::unique_ptr<DistribConfig> _distribConfig;
+    DistribConfig _distribConfig;
 
     void addTarget(ProjectTarget* target);
     void parseConfig(const toml::table& config);

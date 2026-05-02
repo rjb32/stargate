@@ -114,8 +114,7 @@ void ProjectConfig::parseConfig(const toml::table& config) {
 }
 
 void ProjectConfig::parseDistrib(const toml::table& distrib) {
-    _distribConfig = std::make_unique<DistribConfig>();
-    _distribConfig->loadFromTable(distrib);
+    _distribConfig.loadFromTable(distrib);
 }
 
 void ProjectConfig::parseFilesets(const toml::table& filesets) {
