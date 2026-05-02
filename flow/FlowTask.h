@@ -8,6 +8,7 @@
 namespace stargate {
 
 class FlowSection;
+class ProjectTarget;
 
 class FlowTask {
 public:
@@ -17,7 +18,7 @@ public:
 
     virtual std::string_view getName() const = 0;
 
-    virtual void execute() = 0;
+    virtual void execute(const ProjectTarget* target) = 0;
 
     FlowSection* getParent() const { return _parent; }
 

@@ -50,19 +50,25 @@ private:
     const StargateConfig& _config;
     std::unique_ptr<FlowManager> _flowManager;
     std::unique_ptr<DistribFlowManager> _distribFlowManager;
+    std::unique_ptr<DistribConfig> _defaultDistribConfig;
 
+    void prepareExecution(const ProjectConfig* projConfig);
     void createOutputDir();
     void writeTargets(const ProjectConfig* projConfig);
     void writeTargetFileList(const ProjectTarget* target,
                              const std::string& basePath,
                              const std::string& fileListPath);
+    void setActiveDistribConfig(const ProjectConfig* projConfig);
 
     Flow* getTargetFlow(const ProjectTarget* target);
     void getDistribFlow(const ProjectConfig* projectConfig,
                         DistribFlow*& flow,
                         const DistribConfig*& distribConfig);
-    void executeSection(FlowSection* section);
-    void executeSection(FlowSection* section, size_t startIdx, size_t endIdx);
+    void executeSection(const ProjectTarget* target, FlowSection* section);
+    void executeSection(const ProjectTarget* target,
+                        FlowSection* section,
+                        size_t startIdx,
+                        size_t endIdx);
     bool checkSectionDependencies(Flow* flow, FlowSection* section);
     bool checkTaskDependencies(FlowSection* section, size_t taskIdx);
 };

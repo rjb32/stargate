@@ -30,6 +30,7 @@ Stargate::Stargate(const StargateConfig& config)
 {
     _flowManager = std::make_unique<FlowManager>();
     _distribFlowManager = std::make_unique<DistribFlowManager>();
+    _defaultDistribConfig = std::make_unique<DistribConfig>();
 }
 
 Stargate::~Stargate() {
@@ -135,8 +136,7 @@ void Stargate::getDistribFlow(const ProjectConfig* projectConfig,
 
 void Stargate::runFlow(const ProjectConfig* projectConfig,
                        const std::string& targetName) {
-    createOutputDir();
-    writeTargets(projectConfig);
+    prepareExecution(projectConfig);
 
     const ProjectTarget* target = projectConfig->getTarget(targetName);
     if (!target) {
@@ -147,20 +147,19 @@ void Stargate::runFlow(const ProjectConfig* projectConfig,
 
     FlowSection* buildSection = flow->getBuildSection();
     if (buildSection) {
-        executeSection(buildSection);
+        executeSection(target, buildSection);
     }
 
     FlowSection* runSection = flow->getRunSection();
     if (runSection) {
-        executeSection(runSection);
+        executeSection(target, runSection);
     }
 }
 
 void Stargate::runSection(const ProjectConfig* projectConfig,
                           const std::string& targetName,
                           const std::string& sectionName) {
-    createOutputDir();
-    writeTargets(projectConfig);
+    prepareExecution(projectConfig);
 
     const ProjectTarget* target = projectConfig->getTarget(targetName);
     if (!target) {
@@ -173,14 +172,13 @@ void Stargate::runSection(const ProjectConfig* projectConfig,
         panic("Flow '{}' does not have a '{}' section", flow->getName(), sectionName);
     }
 
-    executeSection(section);
+    executeSection(target, section);
 }
 
 void Stargate::executeTask(const ProjectConfig* projectConfig,
                            const std::string& targetName,
                            const std::string& taskName) {
-    createOutputDir();
-    writeTargets(projectConfig);
+    prepareExecution(projectConfig);
 
     const ProjectTarget* target = projectConfig->getTarget(targetName);
     if (!target) {
@@ -212,15 +210,14 @@ void Stargate::executeTask(const ProjectConfig* projectConfig,
         panic("Task '{}' has unmet dependencies", taskName);
     }
 
-    task->execute();
+    task->execute(target);
 }
 
 void Stargate::executeTaskRange(const ProjectConfig* projectConfig,
                                 const std::string& targetName,
                                 const std::string& startTaskName,
                                 const std::string& endTaskName) {
-    createOutputDir();
-    writeTargets(projectConfig);
+    prepareExecution(projectConfig);
 
     const ProjectTarget* target = projectConfig->getTarget(targetName);
     if (!target) {
@@ -264,7 +261,20 @@ void Stargate::executeTaskRange(const ProjectConfig* projectConfig,
         panic("Start task '{}' comes after end task '{}'", startTaskName, endTaskName);
     }
 
-    executeSection(taskSection, *startID, *endID);
+    executeSection(target, taskSection, *startID, *endID);
+}
+
+void Stargate::prepareExecution(const ProjectConfig* projConfig) {
+    createOutputDir();
+    writeTargets(projConfig);
+    setActiveDistribConfig(projConfig);
+}
+
+void Stargate::setActiveDistribConfig(const ProjectConfig* projConfig) {
+    const DistribConfig* config = projConfig->hasDistrib()
+        ? projConfig->getDistribConfig()
+        : _defaultDistribConfig.get();
+    _flowManager->setDistribConfig(config);
 }
 
 void Stargate::createOutputDir() {
@@ -354,12 +364,15 @@ Flow* Stargate::getTargetFlow(const ProjectTarget* target) {
     return flow;
 }
 
-void Stargate::executeSection(FlowSection* section) {
+void Stargate::executeSection(const ProjectTarget* target, FlowSection* section) {
     const auto& tasks = section->tasks();
-    executeSection(section, 0, tasks.size() - 1);
+    executeSection(target, section, 0, tasks.size() - 1);
 }
 
-void Stargate::executeSection(FlowSection* section, size_t startIdx, size_t endIdx) {
+void Stargate::executeSection(const ProjectTarget* target,
+                              FlowSection* section,
+                              size_t startIdx,
+                              size_t endIdx) {
     const auto& tasks = section->tasks();
     Flow* flow = section->getParent();
 
@@ -375,7 +388,7 @@ void Stargate::executeSection(FlowSection* section, size_t startIdx, size_t endI
     for (size_t i = startIdx; i <= endIdx; i++) {
         FlowTask* task = tasks[i];
         spdlog::info("Executing task: {}", task->getName());
-        task->execute();
+        task->execute(target);
     }
 }
 

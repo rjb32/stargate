@@ -5,13 +5,14 @@
 namespace stargate {
 
 class FlowSection;
+class ProjectTarget;
 
 class VivadoSynthTask : public FlowTask {
 public:
     static VivadoSynthTask* create(FlowSection* parent);
 
     std::string_view getName() const override { return "synth"; }
-    void execute() override;
+    void execute(const ProjectTarget* target) override;
 
 private:
     explicit VivadoSynthTask(FlowSection* parent);

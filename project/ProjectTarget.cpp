@@ -25,3 +25,11 @@ void ProjectTarget::addFileSet(const FileSet* fileset) {
 void ProjectTarget::setFlowName(const std::string& flowName) {
     _flowName = flowName;
 }
+
+void ProjectTarget::setTopModule(const std::string& topModule) {
+    _topModule = topModule;
+}
+
+void ProjectTarget::setPart(const std::string& part) {
+    _part = part;
+}

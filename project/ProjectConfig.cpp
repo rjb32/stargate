@@ -162,6 +162,14 @@ void ProjectConfig::parseTargetProperty(ProjectTarget* target,
         if (const auto& flowName = value.value<std::string>()) {
             target->setFlowName(*flowName);
         }
+    } else if (key == "top") {
+        if (const auto& topModule = value.value<std::string>()) {
+            target->setTopModule(*topModule);
+        }
+    } else if (key == "part") {
+        if (const auto& part = value.value<std::string>()) {
+            target->setPart(*part);
+        }
     } else {
         panic("Invalid section '{}' in target {}", key, target->getName());
     }

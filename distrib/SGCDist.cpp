@@ -70,7 +70,7 @@ int SGCDist::execFlow() {
 
     const std::string& flowName = config.getFlowName();
     if (flowName.empty()) {
-        panic("Distrib config {} has no 'flow' key", _distribConfigPath);
+        return execLocal();
     }
 
     DistribFlow* flow = _flowManager->getFlow(flowName);

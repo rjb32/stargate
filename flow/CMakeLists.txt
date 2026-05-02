@@ -5,6 +5,9 @@ set(flow_sources
     Flow.cpp
     FlowManager.cpp
     external/vivado/VivadoFlow.cpp
+    external/vivado/VivadoPaths.cpp
+    external/vivado/VivadoTCLGenerator.cpp
+    external/vivado/VivadoRunner.cpp
     external/vivado/VivadoSynthTask.cpp
     external/vivado/VivadoImplTask.cpp
     external/vivado/VivadoBitstreamTask.cpp)
@@ -14,6 +17,8 @@ add_library(sgc_flow_s STATIC ${flow_sources})
 target_include_directories(sgc_flow_s PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(sgc_flow_s PUBLIC
+    sgc_project_s
+    sgc_distrib_s
     sgc_common_s)
 
 target_link_libraries(sgc_flow_s PRIVATE

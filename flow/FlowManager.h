@@ -7,6 +7,7 @@
 
 namespace stargate {
 
+class DistribConfig;
 class Flow;
 class VivadoFlow;
 
@@ -28,6 +29,10 @@ public:
 
     const std::string& getOutputDir() const { return _outputDir; }
 
+    void setDistribConfig(const DistribConfig* config) { _distribConfig = config; }
+
+    const DistribConfig* getDistribConfig() const { return _distribConfig; }
+
 private:
     friend Flow;
     friend VivadoFlow;
@@ -37,6 +42,7 @@ private:
     Flows _flows;
     FlowNameMap _flowNameMap;
     std::string _outputDir;
+    const DistribConfig* _distribConfig {nullptr};
 };
 
 }
