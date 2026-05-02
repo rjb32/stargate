@@ -31,10 +31,6 @@ VivadoSynthTask* VivadoSynthTask::create(FlowSection* parent) {
 void VivadoSynthTask::execute(const ProjectTarget* target) {
     spdlog::info("Vivado synthesis task");
 
-    if (!target) {
-        panic("Vivado synth task requires a target");
-    }
-
     const FlowManager* manager = getParent()->getParent()->getManager();
 
     std::string outputDir;

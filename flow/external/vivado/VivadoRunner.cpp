@@ -37,10 +37,8 @@ int VivadoRunner::runTcl(const std::string& tclPath,
         panic("VivadoRunner requires a distrib config on the flow manager");
     }
 
-    const std::string logPath =
-        _workingDir + "/" + logBaseName + LOG_EXTENSION;
-    const std::string journalPath =
-        _workingDir + "/" + logBaseName + JOURNAL_EXTENSION;
+    const std::string logPath = _workingDir + "/" + logBaseName + LOG_EXTENSION;
+    const std::string journalPath = _workingDir + "/" + logBaseName + JOURNAL_EXTENSION;
 
     Command command;
     command.setName(VIVADO_BINARY);
