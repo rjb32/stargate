@@ -1,0 +1,14 @@
+[filesets]
+rtl = ["*.v"]
+
+[targets]
+flow = "vivado"
+top = "top"
+part = "xc7a35tcpg236-1"
+filesets = ["rtl"]
+
+[distrib]
+flow = "awsec2"
+
+[distrib.awsec2]
+profile = "remyfpga"

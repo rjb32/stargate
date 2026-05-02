@@ -40,11 +40,11 @@ public:
 
     void setConfigPath(const std::string& configPath) { _configPath = configPath; }
 
-    void readConfig();
-
     bool hasDistrib() const { return _distribConfig != nullptr; }
 
     const DistribConfig* getDistribConfig() const { return _distribConfig.get(); }
+
+    void readConfig();
 
 private:
     bool _verbose {false};

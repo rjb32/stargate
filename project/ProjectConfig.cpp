@@ -1,8 +1,5 @@
 #include "ProjectConfig.h"
 
-#include <filesystem>
-#include <fstream>
-
 #include <toml++/toml.hpp>
 #include <spdlog/spdlog.h>
 

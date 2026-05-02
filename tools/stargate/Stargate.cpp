@@ -11,7 +11,6 @@
 
 #include "DistribFlow.h"
 #include "FatalException.h"
-#include "FileUtils.h"
 
 using namespace stargate;
 using namespace argparse;
@@ -157,6 +156,7 @@ int main(int argc, char** argv) {
         if (!configFilePath.empty()) {
             projectConfig.setConfigPath(configFilePath);
         }
+
         projectConfig.setVerbose(isVerbose);
         projectConfig.readConfig();
 
@@ -174,38 +174,32 @@ int main(int argc, char** argv) {
 
         // Handle infra subcommand
         if (hasInfra) {
-            const std::string action = infraParser.get<std::string>("action");
-            const std::string subaction =
-                infraParser.get<std::string>("subaction");
+            const std::string& action = infraParser.get<std::string>("action");
+            const std::string& subaction = infraParser.get<std::string>("subaction");
             const bool dryMode = infraParser.get<bool>("--dry");
             const bool yesMode = infraParser.get<bool>("--yes");
             setInfraYesMode(yesMode);
+
             if (action != "gui" && !subaction.empty()) {
                 spdlog::error("Sub-action '{}' is only valid with 'gui'",
                               subaction);
                 return EXIT_FAILURE;
-            }
-            if (action == "init") {
+            } else if (action == "init") {
                 stargate.infraInit(&projectConfig, dryMode);
                 return EXIT_SUCCESS;
-            }
-            if (action == "ls") {
+            } else if (action == "ls") {
                 stargate.infraLs(&projectConfig);
                 return EXIT_SUCCESS;
-            }
-            if (action == "start") {
+            } else if (action == "start") {
                 stargate.infraStart(&projectConfig);
                 return EXIT_SUCCESS;
-            }
-            if (action == "stop") {
+            } else if (action == "stop") {
                 stargate.infraStop(&projectConfig);
                 return EXIT_SUCCESS;
-            }
-            if (action == "destroy") {
+            } else if (action == "destroy") {
                 stargate.infraDestroy(&projectConfig);
                 return EXIT_SUCCESS;
-            }
-            if (action == "gui") {
+            } else if (action == "gui") {
                 GUIAction guiAction = GUIAction::OPEN;
                 if (subaction == "start") {
                     guiAction = GUIAction::START;
@@ -217,28 +211,27 @@ int main(int argc, char** argv) {
                 }
                 stargate.infraGui(&projectConfig, guiAction);
                 return EXIT_SUCCESS;
+            } else {
+                spdlog::error("Unknown infra action: {}", action);
+                return EXIT_FAILURE;
             }
-            spdlog::error("Unknown infra action: {}", action);
-            return EXIT_FAILURE;
         }
 
         // Handle task execution options
         if (hasTask) {
-            stargate.executeTask(
-                &projectConfig, targetName, taskName);
+            stargate.executeTask(&projectConfig, targetName, taskName);
             return EXIT_SUCCESS;
         }
 
         if (startTaskName.empty() || endTaskName.empty()) {
-            spdlog::error(
-                "-start_task and -end_task must be used together");
+            spdlog::error("-start_task and -end_task must be used together");
             return EXIT_FAILURE;
         }
-        stargate.executeTaskRange(&projectConfig,
-                                   targetName,
-                                   startTaskName,
-                                   endTaskName);
 
+        stargate.executeTaskRange(&projectConfig,
+                                  targetName,
+                                  startTaskName,
+                                  endTaskName);
     } catch (const FatalException& e) {
         spdlog::error("{}", e.what());
         return EXIT_FAILURE;

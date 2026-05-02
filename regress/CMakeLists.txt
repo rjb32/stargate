@@ -15,6 +15,7 @@ endmacro()
 # Register each regress test directory here
 add_subdirectory(sgcdist_basic)
 add_subdirectory(awsec2_infra_dry)
+add_subdirectory(vivado_test)
 add_subdirectory(verilog_parse)
 add_subdirectory(designs)
 add_subdirectory(RTLLM)
