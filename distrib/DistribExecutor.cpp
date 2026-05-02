@@ -27,20 +27,23 @@ std::string joinPath(const std::string& dir, const std::string& name) {
 
 }
 
-DistribExecutor::DistribExecutor() {
+DistribExecutor::DistribExecutor(const DistribConfig* config,
+                                 const std::string& currentDir)
+    : _distribConfig(config),
+    _currentDir(currentDir)
+{
+    if (!_distribConfig) {
+        panic("DistribExecutor requires a distrib config");
+    }
+    if (_currentDir.empty()) {
+        panic("DistribExecutor requires a current directory");
+    }
 }
 
 DistribExecutor::~DistribExecutor() {
 }
 
 int DistribExecutor::exec(const Command* command) {
-    if (_currentDir.empty()) {
-        panic("DistribExecutor requires a current directory");
-    }
-    if (!_distribConfig) {
-        panic("DistribExecutor requires a distrib config");
-    }
-
     const std::string commandScriptPath = joinPath(_currentDir, COMMAND_SCRIPT_NAME);
     const std::string distribScriptPath = joinPath(_currentDir, DISTRIB_SCRIPT_NAME);
     const std::string distribConfigPath = joinPath(_currentDir, DISTRIB_CONFIG_NAME);

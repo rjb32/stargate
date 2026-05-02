@@ -51,9 +51,7 @@ int VivadoRunner::runTcl(const std::string& tclPath,
     command.addArg("-journal");
     command.addArg(journalPath);
 
-    DistribExecutor executor;
-    executor.setCurrentDir(_workingDir);
-    executor.setDistribConfig(distribConfig);
+    DistribExecutor executor(distribConfig, _workingDir);
 
     spdlog::info("Running vivado on {}", tclPath);
     return executor.exec(&command);
