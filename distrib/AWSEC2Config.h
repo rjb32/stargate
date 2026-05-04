@@ -28,6 +28,8 @@ public:
     const std::string& getBuildInstanceType() const { return _buildInstanceType; }
     const std::string& getFPGAInstanceType() const { return _fpgaInstanceType; }
     const std::string& getAMIID() const { return _amiID; }
+    const std::string& getAWSInfra() const { return _awsInfra; }
+    void setAWSInfra(const std::string& path) { _awsInfra = path; }
     bool getAutostop() const { return _autostop; }
 
 private:
@@ -40,6 +42,7 @@ private:
     std::string _buildInstanceType;
     std::string _fpgaInstanceType;
     std::string _amiID;
+    std::string _awsInfra;
     bool _autostop {true};
 };
 

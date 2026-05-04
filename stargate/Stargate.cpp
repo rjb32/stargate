@@ -15,6 +15,7 @@
 #include "FlowSection.h"
 #include "FlowTask.h"
 
+#include "AWSEC2Config.h"
 #include "DistribConfig.h"
 #include "DistribFlow.h"
 #include "DistribFlowManager.h"
@@ -40,7 +41,7 @@ void Stargate::init() {
     _distribFlowManager->init();
 }
 
-void Stargate::infraInit(const ProjectConfig* projectConfig, bool dryMode) {
+void Stargate::infraInit(ProjectConfig* projectConfig, bool dryMode) {
     setupDistrib(projectConfig);
 
     if (!dryMode) {
@@ -58,6 +59,22 @@ void Stargate::infraInit(const ProjectConfig* projectConfig, bool dryMode) {
     }
 
     _distribFlow->init(_distribConfig, dryMode);
+
+    if (dryMode) {
+        return;
+    }
+
+    AWSEC2Config* awsec2Config = projectConfig->getDistribConfig()->getAWSEC2Config();
+    if (!awsec2Config) {
+        return;
+    }
+
+    std::string distribDirAbs;
+    FileUtils::absolute(_distribFlowManager->getDistribDir(), distribDirAbs);
+    const std::string flowName(_distribFlow->getName());
+    const std::string flowDir = distribDirAbs + "/" + flowName;
+    const std::string awsInfraPath = flowDir + "/" + awsec2Config->getAWSInfra();
+    awsec2Config->setAWSInfra(awsInfraPath);
 }
 
 void Stargate::infraLs(const ProjectConfig* projectConfig) {

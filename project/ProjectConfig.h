@@ -41,6 +41,7 @@ public:
     void setConfigPath(const std::string& configPath) { _configPath = configPath; }
 
     const DistribConfig* getDistribConfig() const { return &_distribConfig; }
+    DistribConfig* getDistribConfig() { return &_distribConfig; }
 
     void readConfig();
 

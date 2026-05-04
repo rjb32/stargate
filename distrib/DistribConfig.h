@@ -26,6 +26,7 @@ public:
     void setFlowName(const std::string& flowName) { _flowName = flowName; }
 
     const AWSEC2Config* getAWSEC2Config() const { return _awsec2Config.get(); }
+    AWSEC2Config* getAWSEC2Config() { return _awsec2Config.get(); }
 
 private:
     std::string _flowName;

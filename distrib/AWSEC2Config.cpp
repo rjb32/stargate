@@ -19,6 +19,7 @@ constexpr const char* PUBLIC_SUBNET_KEY = "public_subnet";
 constexpr const char* BUILD_INSTANCE_TYPE_KEY = "build_instance_type";
 constexpr const char* FPGA_INSTANCE_TYPE_KEY = "fpga_instance_type";
 constexpr const char* AMI_ID_KEY = "ami_id";
+constexpr const char* AWS_INFRA_KEY = "aws_infra";
 constexpr const char* AUTOSTOP_KEY = "autostop";
 
 constexpr const char* DEFAULT_REGION = "us-west-2";
@@ -28,6 +29,7 @@ constexpr const char* DEFAULT_VPC_NAME = "stargate-vpc";
 constexpr const char* DEFAULT_PUBLIC_SUBNET_NAME = "stargate-public";
 constexpr const char* DEFAULT_BUILD_INSTANCE_TYPE = "z1d.2xlarge";
 constexpr const char* DEFAULT_FPGA_INSTANCE_TYPE = "f1.2xlarge";
+constexpr const char* DEFAULT_AWS_INFRA = "aws_infra.toml";
 
 constexpr const char* SECTION_NAME = "awsec2";
 
@@ -40,7 +42,8 @@ AWSEC2Config::AWSEC2Config()
     _vpcName(DEFAULT_VPC_NAME),
     _publicSubnetName(DEFAULT_PUBLIC_SUBNET_NAME),
     _buildInstanceType(DEFAULT_BUILD_INSTANCE_TYPE),
-    _fpgaInstanceType(DEFAULT_FPGA_INSTANCE_TYPE)
+    _fpgaInstanceType(DEFAULT_FPGA_INSTANCE_TYPE),
+    _awsInfra(DEFAULT_AWS_INFRA)
 {
 }
 
@@ -85,6 +88,10 @@ void AWSEC2Config::loadFromTable(const toml::table& table) {
             if (const auto& str = value.value<std::string>()) {
                 _amiID = *str;
             }
+        } else if (key == AWS_INFRA_KEY) {
+            if (const auto& str = value.value<std::string>()) {
+                _awsInfra = *str;
+            }
         } else if (key == AUTOSTOP_KEY) {
             if (const auto& b = value.value<bool>()) {
                 _autostop = *b;
@@ -106,5 +113,6 @@ void AWSEC2Config::save(std::ostream& out) const {
     out << BUILD_INSTANCE_TYPE_KEY << " = \"" << _buildInstanceType << "\"\n";
     out << FPGA_INSTANCE_TYPE_KEY << " = \"" << _fpgaInstanceType << "\"\n";
     out << AMI_ID_KEY << " = \"" << _amiID << "\"\n";
+    out << AWS_INFRA_KEY << " = \"" << _awsInfra << "\"\n";
     out << AUTOSTOP_KEY << " = " << (_autostop ? "true" : "false") << "\n";
 }

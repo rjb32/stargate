@@ -39,7 +39,7 @@ public:
                           const std::string& startTaskName,
                           const std::string& endTaskName);
 
-    void infraInit(const ProjectConfig* projectConfig, bool dryMode);
+    void infraInit(ProjectConfig* projectConfig, bool dryMode);
     void infraLs(const ProjectConfig* projectConfig);
     void infraStart(const ProjectConfig* projectConfig);
     void infraStop(const ProjectConfig* projectConfig);
