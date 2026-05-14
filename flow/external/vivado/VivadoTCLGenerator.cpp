@@ -56,8 +56,8 @@ void VivadoTCLGenerator::writeSynthTcl(const std::string& outputDir) {
     requireTop();
     requirePart();
 
-    std::string fileListPath;
-    VivadoPaths::getFileListPath(_manager, _target, fileListPath);
+    std::string filesTclPath;
+    VivadoPaths::getFilesTclPath(_manager, _target, filesTclPath);
 
     std::string synthDcpPath;
     VivadoPaths::getSynthCheckpoint(_manager, synthDcpPath);
@@ -77,32 +77,12 @@ void VivadoTCLGenerator::writeSynthTcl(const std::string& outputDir) {
 
     out << "set sg_top   " << _target->getTopModule() << "\n";
     out << "set sg_part  " << _target->getPart()      << "\n";
-    out << "set sg_files " << fileListPath            << "\n";
+    out << "set sg_files " << filesTclPath            << "\n";
     out << "set sg_dcp   " << synthDcpPath            << "\n";
     out << "set sg_util  " << utilReportPath          << "\n";
     out << "set sg_tim   " << timingReportPath        << "\n\n";
 
-    out << "set sg_fp [open $sg_files r]\n";
-    out << "while {[gets $sg_fp sg_line] >= 0} {\n";
-    out << "    set sg_line [string trim $sg_line]\n";
-    out << "    if {$sg_line eq \"\"} { continue }\n";
-    out << "    set sg_ext [string tolower [file extension $sg_line]]\n";
-    out << "    switch -- $sg_ext {\n";
-    out << "        .v   { read_verilog $sg_line }\n";
-    out << "        .vh  { read_verilog $sg_line }\n";
-    out << "        .sv  { read_verilog -sv $sg_line }\n";
-    out << "        .svh { read_verilog -sv $sg_line }\n";
-    out << "        .vhd  -\n";
-    out << "        .vhdl { read_vhdl $sg_line }\n";
-    out << "        .xdc -\n";
-    out << "        .sdc { read_xdc $sg_line }\n";
-    out << "        .tcl { source $sg_line }\n";
-    out << "        default {\n";
-    out << "            puts \"stargate: skipping unknown file type: $sg_line\"\n";
-    out << "        }\n";
-    out << "    }\n";
-    out << "}\n";
-    out << "close $sg_fp\n\n";
+    out << "source $sg_files\n\n";
 
     out << "synth_design -top $sg_top -part $sg_part\n";
     out << "write_checkpoint -force $sg_dcp\n";

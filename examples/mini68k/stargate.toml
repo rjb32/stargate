@@ -5,3 +5,5 @@ testbench = ["testbench/*.v"]
 [targets]
 filesets = ["rtl", "testbench"]
 flow = "vivado"
+top = "mini68k_top"
+part = "xc7a35tcpg236-1"

@@ -56,9 +56,9 @@ private:
     void prepareExecution(const ProjectConfig* projConfig);
     void createOutputDir();
     void writeTargets(const ProjectConfig* projConfig);
-    void writeTargetFileList(const ProjectTarget* target,
+    void writeTargetFilesTcl(const ProjectTarget* target,
                              const std::string& basePath,
-                             const std::string& fileListPath);
+                             const std::string& tclPath);
 
     Flow* getTargetFlow(const ProjectTarget* target);
     void setupDistrib(const ProjectConfig* projectConfig);

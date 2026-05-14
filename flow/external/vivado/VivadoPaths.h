@@ -9,7 +9,7 @@ class ProjectTarget;
 
 class VivadoPaths {
 public:
-    static void getFileListPath(const FlowManager* manager,
+    static void getFilesTclPath(const FlowManager* manager,
                                 const ProjectTarget* target,
                                 std::string& result);
 
