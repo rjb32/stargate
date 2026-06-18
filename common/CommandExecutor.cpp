@@ -139,7 +139,8 @@ int CommandExecutor::exec(const Command* command) {
         execvp(command->getName().c_str(), argv.data());
 
         const char* msg = "Failed to exec command\n";
-        write(STDERR_FILENO, msg, strlen(msg));
+        const ssize_t ignored = write(STDERR_FILENO, msg, strlen(msg));
+        (void)ignored;
         _exit(EXEC_FAILED_EXIT_CODE);
     }
 
